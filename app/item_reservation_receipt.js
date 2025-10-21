@@ -8,6 +8,7 @@ export default function ReservationReceipt() {
 
   return (
     <View style={styles.container}>
+      {/* Receipt Card */}
       <View style={styles.card}>
         <Text style={styles.title}>Reservation Receipt</Text>
         <Text style={styles.detail}>{date}</Text>
@@ -16,6 +17,7 @@ export default function ReservationReceipt() {
         <Text style={styles.detail}>Quantity: {quantity}</Text>
       </View>
 
+      {/* Note Section */}
       <View style={styles.noteBox}>
         <Text style={styles.noteTitle}>Note:</Text>
         <Text style={styles.noteText}>
@@ -31,7 +33,7 @@ export default function ReservationReceipt() {
       {/* DONE BUTTON */}
       <TouchableOpacity
         style={styles.button}
-        onPress={() => router.push("/AdminDashboard")} // navigate back
+        onPress={() => router.push("/(drawer)/AdminDashboard")} // navigate back to dashboard
       >
         <Text style={styles.buttonText}>Done</Text>
       </TouchableOpacity>

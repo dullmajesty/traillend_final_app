@@ -28,7 +28,7 @@ export default function AdminDashboard() {
   // ✅ Single fetch function
   const fetchItems = async () => {
     try {
-      const response = await fetch("http://192.168.1.8:8000/api/api_inventory_list/");
+      const response = await fetch("http://192.168.151.115:8000/api/api_inventory_list/");
       const data = await response.json();
       console.log("✅ Fetched items:", data);
       setItems(data);

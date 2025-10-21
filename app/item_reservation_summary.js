@@ -1,36 +1,148 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity, ScrollView } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  ScrollView,
+  Modal,
+  Alert,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function ReservationSummary() {
   const router = useRouter();
-  const { name, qty, date, image } = useLocalSearchParams(); // values passed from ItemDetails
 
-  const [phone, setPhone] = useState("");
+  const {
+    name,
+    qty,
+    date,
+    message,
+    priority,
+    userID,
+    itemID,
+    letterPhoto,
+    idPhoto,
+  } = useLocalSearchParams();
+
+  const [borrower, setBorrower] = useState(null);
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [acceptPhone, setAcceptPhone] = useState(false);
+  const [letterPreview, setLetterPreview] = useState(false);
+  const [idPreview, setIdPreview] = useState(false);
 
-  const handleConfirm = () => {
-  if (!acceptPhone || !acceptTerms || !phone) {
-    alert("Please complete phone number and agree to terms.");
-    return;
-  }
+  const prettyPriority = (p) => {
+    if (!p) return "N/A";
+    const t = String(p).toLowerCase();
+    if (t === "high") return "High — Bereavement Request";
+    if (t === "medium") return "Medium — Event Request";
+    if (t === "low") return "Low — General Request";
+    return p;
+  };
 
-  // Generate a dummy transaction ID
-  const transactionId = "T" + Date.now().toString().slice(-8);
+  useEffect(() => {
+    const fetchBorrower = async () => {
+      try {
+        const accessToken = await AsyncStorage.getItem("accessToken");
+        if (!accessToken) {
+          console.warn("No access token found.");
+          return;
+        }
 
-  // Navigate to ReservationReceipt and pass details
-  router.push({
-    pathname: "/item_reservation_receipt",
-    params: {
-      date: date || "N/A",
-      transactionId,
-      item: name || "Item",
-      quantity: qty || "0",
-    },
-  });
-};
+        const res = await fetch("http://192.168.151.115:8000/api/me_borrower/", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        const data = await res.json();
+        console.log("Borrower info:", data);
+
+        if (res.ok) {
+          setBorrower(data);
+          if (data.user_id) {
+            await AsyncStorage.setItem("borrowerUserID", String(data.user_id));
+          }
+        } else Alert.alert("Error", data?.error || "Borrower info not found");
+      } catch (error) {
+        console.error("❌ Error fetching borrower info:", error);
+        Alert.alert("Error", "Failed to load borrower info");
+      }
+    };
+
+    fetchBorrower();
+  }, []);
+
+  const handleConfirm = async () => {
+    if (!acceptTerms) {
+      alert("Please agree to Terms and Conditions first.");
+      return;
+    }
+
+    try {
+      const savedUserID =
+        (await AsyncStorage.getItem("borrowerUserID")) || userID;
+
+      if (!savedUserID) {
+        Alert.alert("Error", "User ID not found. Please log in again.");
+        return;
+      }
+
+      // 🧠 Log everything being sent
+      console.log("📦 Sending Reservation Request:", {
+        userID: savedUserID,
+        itemID,
+        qty,
+        date,
+        message,
+        priority,
+      });
+
+      // Ensure itemID is numeric (Django expects integer)
+      const parsedItemID = parseInt(itemID, 10);
+
+      const res = await fetch("http://192.168.151.115:8000/api/create_reservation/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userID: savedUserID,
+          itemID: parsedItemID,
+          quantity: qty,
+          reserve_date: date,
+          message: message,
+          priority: priority,
+          letter_image: letterPhoto,
+          valid_id_image: idPhoto,
+        }),
+      });
+
+      const data = await res.json();
+      console.log("Reservation Response:", data);
+
+      if (res.ok) {
+        Alert.alert("Success", "Reservation created successfully!");
+        router.push({
+          pathname: "/item_reservation_receipt",
+          params: {
+            date: date || "N/A",
+            transactionId: data.transaction_id || "N/A",
+            item: name || "Item",
+            quantity: qty || "0",
+          },
+        });
+      } else {
+        console.error("❌ Reservation creation failed:", data);
+        Alert.alert("Error", data?.error || "Failed to create reservation");
+      }
+    } catch (error) {
+      console.error("❌ Reservation Error:", error);
+      Alert.alert("Error", "Something went wrong while creating the reservation.");
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -41,75 +153,132 @@ export default function ReservationSummary() {
       </View>
 
       <ScrollView style={{ marginTop: 100 }} contentContainerStyle={{ padding: 20 }}>
-        {/* Reservation Info */}
-        <View style={styles.row}>
-          <Text style={styles.label}>Reserve Date</Text>
-          <Text style={styles.value}>{date || "N/A"}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Quantity</Text>
-          <Text style={styles.value}>{qty || "0"}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Items</Text>
-          <Text style={styles.value}>{name || "Item"}</Text>
+        {/* Item Info */}
+        <View style={styles.section}>
+          <View style={styles.row}>
+            <Text style={styles.label}>Item Name</Text>
+            <Text style={styles.value}>{name || "Item"}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Quantity</Text>
+            <Text style={styles.value}>{qty || "0"}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Reserve Date</Text>
+            <Text style={styles.value}>{date || "N/A"}</Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={styles.label}>Priority</Text>
+            <Text style={styles.value}>{prettyPriority(priority)}</Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={styles.label}>Message</Text>
+            <Text style={styles.value}>{message || "N/A"}</Text>
+          </View>
         </View>
 
-        {/* Item Preview + Info */}
-        <View style={styles.itemBox}>
-          <Image source={{ uri: image }} style={styles.itemImage} resizeMode="contain" />
-          <Text style={styles.itemText}>
-            This item is still pending and requires admin approval. To verify its approval status, please select the checkbox and provide your contact number so the admin can call you.
+        {/* Uploaded Images */}
+        <View style={styles.section}>
+          {!!letterPhoto && (
+            <View style={[styles.imageRow, { paddingTop: 8 }]}>
+              <Text style={[styles.label, { marginBottom: 5 }]}>Letter Image</Text>
+              <TouchableOpacity onPress={() => setLetterPreview(true)}>
+                <Image source={{ uri: letterPhoto }} style={styles.imagePreview} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {!!idPhoto && (
+            <View style={[styles.imageRow, { paddingTop: 8 }]}>
+              <Text style={[styles.label, { marginBottom: 5 }]}>Valid ID Image</Text>
+              <TouchableOpacity onPress={() => setIdPreview(true)}>
+                <Image source={{ uri: idPhoto }} style={styles.imagePreview} />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* Borrower Info */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Borrower Info</Text>
+          {borrower ? (
+            <>
+              <View style={styles.row}>
+                <Text style={styles.label}>Full Name</Text>
+                <Text style={styles.value}>{borrower.full_name || "N/A"}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.label}>Address</Text>
+                <Text style={styles.value}>{borrower.address || "N/A"}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.label}>Contact Number</Text>
+                <Text style={styles.value}>{borrower.contact_number || "N/A"}</Text>
+              </View>
+            </>
+          ) : (
+            <Text style={styles.loadingText}>Loading borrower info...</Text>
+          )}
+        </View>
+
+        {/* Terms & Confirm */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Terms & Conditions</Text>
+
+          <View style={styles.checkboxRow}>
+            <TouchableOpacity onPress={() => setAcceptTerms(!acceptTerms)}>
+              <Ionicons
+                name={acceptTerms ? "checkbox" : "square-outline"}
+                size={22}
+                color="#fff"
+              />
+            </TouchableOpacity>
+            <Text style={styles.checkboxText}>Agree to Terms & Conditions</Text>
+          </View>
+
+          <Text style={styles.termsText}>
+            By borrowing an item, you agree to return it in good condition and accept full
+            responsibility for any damage or loss during the borrowing period. Violations may
+            result in penalties, suspension, or replacement costs.
           </Text>
-        </View>
 
-        {/* Phone Checkbox */}
-        <View style={styles.checkboxRow}>
-          <TouchableOpacity onPress={() => setAcceptPhone(!acceptPhone)}>
-            <Ionicons
-              name={acceptPhone ? "checkbox" : "square-outline"}
-              size={22}
-              color="#fff"
-            />
+          <TouchableOpacity
+            style={[styles.confirmBtn, { backgroundColor: acceptTerms ? "#FFA500" : "#ccc" }]}
+            onPress={handleConfirm}
+            disabled={!acceptTerms}
+          >
+            <Text style={styles.confirmText}>Confirm</Text>
           </TouchableOpacity>
-          <Text style={styles.checkboxText}>Phone Number</Text>
         </View>
-        <TextInput
-          style={styles.input}
-          value={phone}
-          onChangeText={setPhone}
-          placeholder="Enter phone number"
-          keyboardType="numeric"
-          placeholderTextColor="#aaa"
-        />
-
-        {/* Terms & Conditions */}
-        <View style={styles.checkboxRow}>
-          <TouchableOpacity onPress={() => setAcceptTerms(!acceptTerms)}>
-            <Ionicons
-              name={acceptTerms ? "checkbox" : "square-outline"}
-              size={22}
-              color="#fff"
-            />
-          </TouchableOpacity>
-          <Text style={styles.checkboxText}>Terms & Condition:</Text>
-        </View>
-        <Text style={styles.termsText}>
-          By borrowing an item, the user agrees to return it in good condition and accepts full responsibility for any loss or damage incurred during the borrowing period. Failure to comply may result in penalties, including suspension of borrowing privileges or reimbursement for damaged or lost items.
-        </Text>
-
-        {/* Confirm Button */}
-        <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm}>
-          <Text style={styles.confirmText}>Confirm</Text>
-        </TouchableOpacity>
       </ScrollView>
+
+      {/* Letter Preview Modal */}
+      <Modal visible={letterPreview} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          {!!letterPhoto && <Image source={{ uri: letterPhoto }} style={styles.fullImage} />}
+          <TouchableOpacity onPress={() => setLetterPreview(false)} style={styles.closeIcon}>
+            <Ionicons name="close-circle" size={35} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* ID Preview Modal */}
+      <Modal visible={idPreview} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          {!!idPhoto && <Image source={{ uri: idPhoto }} style={styles.fullImage} />}
+          <TouchableOpacity onPress={() => setIdPreview(false)} style={styles.closeIcon}>
+            <Ionicons name="close-circle" size={35} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#97c6d2" },
-
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -118,13 +287,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: "#97c6d2",
     position: "absolute",
-    top: 0, left: 0, right: 0,
+    top: 0,
+    left: 0,
+    right: 0,
     zIndex: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 4,
   },
   headerTitle: {
     color: "#fff",
@@ -134,66 +300,55 @@ const styles = StyleSheet.create({
     flex: 1,
     right: 15,
   },
-
-  scrollWrapper: { marginTop: 70, padding: 20 },
-
-  // Reservation Info Card
-  rowCard: {
-    backgroundColor: "#2A2060",
-    borderRadius: 10,
+  section: {
+    borderRadius: 12,
     padding: 15,
-    marginBottom: 15,
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "bold",
+    marginBottom: 10,
   },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 10,
   },
-  label: { color: "#f5f5f5ff", fontSize: 13 },
-  value: { color: "#fff", fontWeight: "600", fontSize: 14 },
-
-  // Item Box
-  itemBox: {
-    backgroundColor: "#2A2060",
-    borderRadius: 10,
-    padding: 15,
+  label: {
+    color: "#f5f5f5ff",
+    fontSize: 13,
+    width: "50%",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  value: { color: "#fff", fontWeight: "600", fontSize: 14, textAlign: "right", flex: 1 },
+  imageRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
+    justifyContent: "space-between",
+    marginBottom: 15,
   },
-  itemImage: {
-    width: 80,
-    height: 80,
+  imagePreview: {
+    width: 100,
+    height: 100,
     borderRadius: 10,
     backgroundColor: "#fff",
-    marginRight: 12,
+    marginLeft: 10,
   },
-  itemText: { flex: 1, color: "#fff", fontSize: 13, lineHeight: 18 },
-
-  // Checkbox & Input
-  checkboxRow: { flexDirection: "row", alignItems: "center", marginTop: 15 },
+  checkboxRow: { flexDirection: "row", alignItems: "center", marginTop: 12 },
   checkboxText: { color: "#fff", marginLeft: 8, fontWeight: "600" },
-  input: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 8,
-    fontSize: 14,
-  },
-
   termsText: {
-    color: "#040404ff",
+    color: "#e1e1e1",
     fontSize: 12,
     marginTop: 8,
     lineHeight: 18,
   },
-
-  // Confirm Button
   confirmBtn: {
-    backgroundColor: "#FFA500",
     padding: 15,
     borderRadius: 10,
-    marginTop: 25,
+    marginTop: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
@@ -206,4 +361,17 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 16,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fullImage: { width: "90%", height: "70%", borderRadius: 10 },
+  closeIcon: {
+    position: "absolute",
+    top: 60,
+    right: 25,
+  },
+  loadingText: { color: "#fff", textAlign: "center" },
 });

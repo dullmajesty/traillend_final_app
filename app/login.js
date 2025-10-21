@@ -1,5 +1,14 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Switch } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  StyleSheet,
+  Switch,
+  Alert,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
@@ -12,41 +21,71 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
- const handleLogin = async () => {
-  if (!username || !password) {
-    alert("Please enter both username and password");
-    return;
-  }
-
-  try {
-    const res = await axios.post(
-      "http://192.168.1.8:8000/api/api_login/",
-      { username, password },
-      { headers: { "Content-Type": "application/json" } }
-    );
-
-    const token = res.data.access; // JWT access token
-
-    if (!token) {
-      alert("Login failed: No token received");
+  const handleLogin = async () => {
+    if (!username || !password) {
+      alert("Please enter both username and password");
       return;
     }
 
-    // Save token for future API requests
-    await AsyncStorage.setItem("userToken", token);
+    try {
+      const res = await axios.post(
+        "http://192.168.151.115:8000/api/api_login/",
+        { username, password },
+        { headers: { "Content-Type": "application/json" } }
+      );
 
-    alert("Login successful!");
-    router.replace("/(drawer)/AdminDashboard");
-  } catch (err) {
-    console.error(err);
-    alert(err.response?.data?.error || "Login failed. Please try again.");
-  }
-};
+      const data = res.data;
 
+      const accessToken = data.access; // JWT access token
+      const refreshToken = data.refresh;
+
+      if (!accessToken) {
+        alert("Login failed: No token received");
+        return;
+      }
+
+      // ✅ Save tokens to AsyncStorage
+      await AsyncStorage.multiSet([
+        ["accessToken", accessToken],
+        ["refreshToken", refreshToken],
+      ]);
+
+      // ✅ Try fetching borrower info using the access token
+      try {
+        const borrowerRes = await fetch(
+          "http://192.168.151.115:8000/api/me_borrower/",
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+
+        if (borrowerRes.ok) {
+          const borrowerData = await borrowerRes.json();
+
+          // Store borrower info for later use (optional but recommended)
+          await AsyncStorage.multiSet([
+            ["userID", String(borrowerData.user_id || "")],
+            ["fullName", borrowerData.full_name || ""],
+            ["contactNumber", borrowerData.contact_number || ""],
+            ["address", borrowerData.address || ""],
+          ]);
+        } else {
+          console.warn("Failed to fetch borrower info:", borrowerRes.status);
+        }
+      } catch (borrowerError) {
+        console.warn("Error fetching borrower info:", borrowerError);
+      }
+
+      alert("Login successful!");
+      router.replace("/(drawer)/AdminDashboard");
+    } catch (err) {
+      console.error("Login error:", err);
+      alert(err.response?.data?.message || "Login failed. Please try again.");
+    }
+  };
 
   return (
     <View style={styles.container}>
-
       {/* Title */}
       <Text style={styles.title}>TrailLend</Text>
       <Text style={styles.subtitle}>Log In to Your Account</Text>
@@ -79,8 +118,6 @@ export default function Login() {
           />
         </TouchableOpacity>
       </View>
-  
-      
 
       {/* Remember Me & Forgot Password */}
       <View style={styles.row}>
@@ -110,19 +147,58 @@ export default function Login() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 30, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" },
+  container: {
+    flex: 1,
+    paddingHorizontal: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
   logo: { width: 120, height: 120, marginBottom: 20 },
   title: { fontSize: 50, fontWeight: "bold", color: "#97c6d2" },
   subtitle: { fontSize: 16, color: "#333", marginBottom: 20 },
-  input: { width: "100%", height: 50, borderColor: "#ccc", borderWidth: 1, borderRadius: 8, paddingHorizontal: 15, marginBottom: 15 },
+  input: {
+    width: "100%",
+    height: 50,
+    borderColor: "#ccc",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    marginBottom: 15,
+  },
   passwordWrapper: { width: "100%", position: "relative", marginBottom: 15 },
-  inputPassword: { width: "100%", height: 50, borderColor: "#ccc", borderWidth: 1, borderRadius: 8, paddingHorizontal: 15, paddingRight: 45 },
+  inputPassword: {
+    width: "100%",
+    height: 50,
+    borderColor: "#ccc",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingRight: 45,
+  },
   eyeIcon: { position: "absolute", right: 15, top: 13 },
-  row: { flexDirection: "row", justifyContent: "space-between", width: "100%", alignItems: "center", marginBottom: 20 },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 20,
+  },
   rememberMe: { flexDirection: "row", alignItems: "center" },
   forgotPassword: { color: "#97c6d2", textDecorationLine: "underline" },
-  button: { backgroundColor: "#97c6d2", width: "100%", paddingVertical: 15, borderRadius: 8, marginBottom: 20 },
-  buttonText: { color: "#fff", textAlign: "center", fontWeight: "bold", fontSize: 16 },
+  button: {
+    backgroundColor: "#97c6d2",
+    width: "100%",
+    paddingVertical: 15,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  buttonText: {
+    color: "#fff",
+    textAlign: "center",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
   signup: { flexDirection: "row", alignItems: "center" },
   signupText: { color: "#97c6d2", fontWeight: "bold" },
 });
