@@ -1,15 +1,81 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import axios from "axios";
+
+// ✅ Use your current LAN IP (same as backend)
+const BASE_URL = "http://192.168.1.8:8000";
 
 export default function ViewProfile() {
   const router = useRouter();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Example user data (replace with props, context, or API later)
-  const [user] = useState({
-   
-  });
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const storedUsername = await AsyncStorage.getItem("username");
+        const token =
+          (await AsyncStorage.getItem("access")) ||
+          (await AsyncStorage.getItem("userToken"));
+
+        if (!storedUsername || !token) {
+          console.error("No username or token found in storage");
+          Alert.alert("Session expired", "Please log in again.");
+          setLoading(false);
+          router.replace("/login");
+          return;
+        }
+
+        const res = await axios.get(`${BASE_URL}/api/user_profile/`, {
+          params: { username: storedUsername },
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.data?.success) {
+          setUser(res.data.data);
+        } else {
+          console.error("Error fetching profile:", res.data?.message);
+          Alert.alert("Error", res.data?.message || "Failed to load profile");
+        }
+      } catch (err) {
+        console.error("Profile fetch error:", err.response?.data || err.message);
+        Alert.alert("Error", "Unable to load your profile.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#4A90E2" />
+        <Text style={{ marginTop: 10 }}>Loading profile...</Text>
+      </View>
+    );
+  }
+
+  if (!user) {
+    return (
+      <View style={styles.centered}>
+        <Text style={{ color: "#555" }}>No profile found.</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -19,19 +85,20 @@ export default function ViewProfile() {
           <Ionicons name="arrow-back" size={24} color="#F5F5F5" />
         </TouchableOpacity>
         <Text style={styles.header}>View Profile</Text>
-        <View style={{ width: 24 }} /> {/* spacer */}
+        <View style={{ width: 24 }} />
       </View>
 
       {/* Profile Section */}
       <View style={styles.profileSection}>
         <Image
           source={
-            user.profilePic
-              ? { uri: user.profilePic }
-              : require("../assets/default_profile.jpg") 
+            user.image
+              ? { uri: user.image.startsWith("http") ? user.image : `${BASE_URL}${user.image}` }
+              : require("../assets/default_profile.jpg")
           }
           style={styles.profileImage}
         />
+
         <Text style={styles.name}>{user.name}</Text>
         <Text style={styles.username}>@{user.username}</Text>
       </View>
@@ -45,7 +112,7 @@ export default function ViewProfile() {
         <Text style={styles.value}>{user.username}</Text>
 
         <Text style={styles.label}>Contact Number</Text>
-        <Text style={styles.value}>{user.cpNumber}</Text>
+        <Text style={styles.value}>{user.contactNumber}</Text>
 
         <Text style={styles.label}>Address</Text>
         <Text style={styles.value}>{user.address}</Text>
@@ -63,11 +130,12 @@ export default function ViewProfile() {
   );
 }
 
+// ================= Styles =================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#97c6d2",
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingTop: 40,
   },
   headerContainer: {
@@ -134,5 +202,10 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     marginLeft: 6,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

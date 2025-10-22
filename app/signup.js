@@ -22,28 +22,27 @@ export default function SignUp() {
     return;
   }
 
-  axios.post("http://192.168.151.115:8000/api/api_register/", {
-    name,
-    username,
-    contactNumber,
-    address,
-    password,
-    confirmPassword
-  })
+   axios.post(
+      "http://192.168.1.8:8000/api/register/",
+      {
+        name,
+        username,
+        contactNumber,
+        address,
+        password,
+        confirmPassword
+      },
+      {
+        headers: {
+          "Content-Type": "application/json", // ✅ tell Django it's JSON
+        },
+      }
+    )
   .then((res) => {
     alert(res.data.message);   // show success
     if (res.data.success) {
     router.replace("/login");  
     }
-  })
-
-  .catch((err) => {
-  console.log("Error response:", err.response?.data);
-  if (err.response) {
-    alert(err.response.data.message);
-  } else {
-    alert("Something went wrong");
-  }
 });
 
 

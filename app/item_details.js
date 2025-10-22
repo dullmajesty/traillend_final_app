@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ScrollView,
   Modal,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,34 +18,52 @@ import * as ImagePicker from "expo-image-picker";
 
 export default function ItemDetails() {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams(); // item_id from list screen
+
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Calendar / reservation state
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
-  const [reserveModal, setReserveModal] = useState(false);
+  const [blockedDates, setBlockedDates] = useState([]); // ["YYYY-MM-DD", ...]
+  const [checking, setChecking] = useState(false);
+
+  // Conflict modal state
+  const [conflictModal, setConflictModal] = useState(false);
+  const [conflictInfo, setConflictInfo] = useState({ blocked: [], suggestions: [] });
+
+  // Form fields
   const [message, setMessage] = useState("");
   const [letterPhoto, setLetterPhoto] = useState(null);
   const [idPhoto, setIdPhoto] = useState(null);
   const [borrowQty, setBorrowQty] = useState("");
-  const [priority, setPriority] = useState("Low"); // Low | Medium | High
-
-  const markedDates = {
-    "2025-05-22": { disabled: true, disableTouchEvent: true, marked: true, dotColor: "red" },
-    "2025-05-23": { disabled: true, disableTouchEvent: true, marked: true, dotColor: "red" },
-  };
+  const [priority, setPriority] = useState("Low"); // "Low" | "Medium" | "High"
 
   const URGENCY_OPTIONS = [
-    { key: "High", label: "Bereavement Request", display: "High — Bereavement", description: "Immediate priority for bereavement-related requests." },
-    { key: "Medium", label: "Event Request", display: "Medium — Event", description: "For scheduled programs/activities; moderate urgency." },
-    { key: "Low", label: "General Request", display: "Low — General", description: "Standard borrowing; normal queue." },
+    { key: "High", display: "High — Bereavement" },
+    { key: "Medium", display: "Medium — Event" },
+    { key: "Low", display: "Low — General" },
   ];
 
-  // ✅ Fetch item details
+  // Build markedDates from blocked + selected
+  const computedMarked = useMemo(() => {
+    const md = {};
+    blockedDates.forEach((d) => {
+      md[d] = { disabled: true, disableTouchEvent: true, marked: true, dotColor: "red" };
+    });
+    if (selectedDate) {
+      md[selectedDate] = { ...(md[selectedDate] || {}), selected: true, selectedColor: "blue" };
+    }
+    return md;
+  }, [blockedDates, selectedDate]);
+
+  // Fetch item details (you already have this list endpoint)
   useEffect(() => {
     const fetchItemDetails = async () => {
+      setLoading(true);
       try {
-        const response = await fetch(`http://192.168.151.115:8000/api/api_inventory_list/`);
+        const response = await fetch(`http://192.168.1.8:8000/api/inventory_list/`);
         const data = await response.json();
         const selectedItem = data.find((i) => i.item_id === parseInt(id));
         if (selectedItem) setItem(selectedItem);
@@ -58,7 +77,21 @@ export default function ItemDetails() {
     if (id) fetchItemDetails();
   }, [id]);
 
-  // ✅ Image picker
+  // Fetch fully-booked (blocked) dates for this item (next 90 days)
+  useEffect(() => {
+    const fetchBlocked = async () => {
+      try {
+        const res = await fetch(`http://192.168.1.8:8000/api/items/${id}/blocked-dates/?days_ahead=90`);
+        const json = await res.json();
+        setBlockedDates(Array.isArray(json.blocked) ? json.blocked : []);
+      } catch (e) {
+        console.warn("Failed to fetch blocked dates", e);
+      }
+    };
+    if (id) fetchBlocked();
+  }, [id]);
+
+  // Image picker helper
   const pickImage = async (setImage) => {
     try {
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
@@ -97,6 +130,63 @@ export default function ItemDetails() {
     }
   };
 
+  // PRE-FLIGHT CHECK ONLY (no saving here)
+  const preflightAndGoToSummary = async (overrideDates) => {
+    const reserve_date = overrideDates?.reserve_date || selectedDate;
+
+    if (!reserve_date) return Alert.alert("Select date", "Please choose a date first.");
+    if (!borrowQty) return Alert.alert("Quantity required", "Please enter how many you need.");
+
+    setChecking(true);
+    try {
+      const res = await fetch(`http://192.168.1.8:8000/api/reservations/check/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          item_id: Number(id),
+          qty: Number(borrowQty),
+          date: reserve_date, // single day
+        }),
+      });
+
+      if (res.status === 200) {
+        // ✅ available — go to summary; NO saving here
+        router.push({
+          pathname: "/item_reservation_summary",
+          params: {
+            name: item?.name,
+            qty: String(borrowQty),
+            date: reserve_date,
+            message,
+            priority,
+            image: item?.image,
+            letterPhoto,
+            idPhoto,
+            itemID: String(item?.item_id),
+          },
+        });
+      } else if (res.status === 409) {
+        const data = await res.json();
+        setConflictInfo({ blocked: data.blocked || [], suggestions: data.suggestions || [] });
+        setConflictModal(true);
+        // refresh blocked dates
+        try {
+          const re = await fetch(`http://192.168.1.8:8000/api/items/${id}/blocked-dates/?days_ahead=90`);
+          const js = await re.json();
+          setBlockedDates(Array.isArray(js.blocked) ? js.blocked : []);
+        } catch {}
+      } else {
+        const text = await res.text();
+        let data; try { data = JSON.parse(text); } catch { data = { detail: text || "Unknown error" }; }
+        Alert.alert("Error", data.detail || "Could not check availability.");
+      }
+    } catch (e) {
+      Alert.alert("Network error", "Please check your connection.");
+    } finally {
+      setChecking(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -126,23 +216,21 @@ export default function ItemDetails() {
         <View style={styles.imageWrapper}>
           <Image
             source={{
-              uri: item.image
-                ? item.image
-                : "https://via.placeholder.com/150?text=No+Image",
+              uri: item.image ? item.image : "https://via.placeholder.com/150?text=No+Image",
             }}
             style={styles.itemImage}
             resizeMode="contain"
           />
         </View>
 
-        {/* Info Section */}
+        {/* Info */}
         <Text style={styles.itemName}>{item.name || "Item Name"}</Text>
         <Text style={styles.itemOwner}>Owner: {item.owner || "Barangay Kauswagan"}</Text>
 
         <Text style={styles.detailsTitle}>Description:</Text>
         <Text style={styles.detailsText}>{item.description || "No description provided."}</Text>
 
-        {/* ✅ Available + Quantity Input */}
+        {/* Available + Quantity */}
         <View style={styles.availableContainer}>
           <Text style={styles.availableText}>Available: {item.qty || "0"}</Text>
           <TextInput
@@ -170,13 +258,13 @@ export default function ItemDetails() {
         <TouchableOpacity style={styles.uploadBtn} onPress={() => pickImage(setLetterPhoto)}>
           <Text style={styles.uploadText}>Take picture of letter</Text>
         </TouchableOpacity>
-        {letterPhoto && <Image source={{ uri: letterPhoto }} style={styles.previewImage} />}
+        {letterPhoto ? <Image source={{ uri: letterPhoto }} style={styles.previewImage} /> : null}
 
         {/* Upload Valid ID */}
         <TouchableOpacity style={styles.uploadBtn} onPress={() => pickImage(setIdPhoto)}>
           <Text style={styles.uploadText}>Take picture of valid ID</Text>
         </TouchableOpacity>
-        {idPhoto && <Image source={{ uri: idPhoto }} style={styles.previewImage} />}
+        {idPhoto ? <Image source={{ uri: idPhoto }} style={styles.previewImage} /> : null}
 
         {/* Priority / Urgency */}
         <Text style={styles.label}>Priority</Text>
@@ -213,27 +301,17 @@ export default function ItemDetails() {
           onChangeText={setMessage}
         />
 
-        {/* Reserve Button */}
+        {/* Continue to Summary (check-only) */}
         <TouchableOpacity
-          style={styles.reserveBtn}
-          onPress={() =>
-            router.push({
-              pathname: "/item_reservation_summary",
-              params: {
-                name: item.name,
-                qty: borrowQty,
-                date: selectedDate,
-                message: message,
-                priority,
-                image: item.image,
-                letterPhoto,
-                idPhoto,
-                itemID: item.item_id, // ✅ FIXED: now sends the correct item_id
-              },
-            })
-          }
+          style={[styles.reserveBtn, checking && { opacity: 0.6 }]}
+          disabled={checking}
+          onPress={() => preflightAndGoToSummary()}
         >
-          <Text style={styles.reserveText}>Reserve</Text>
+          {checking ? (
+            <ActivityIndicator />
+          ) : (
+            <Text style={styles.reserveText}>Continue</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
 
@@ -242,17 +320,16 @@ export default function ItemDetails() {
         <View style={{ flex: 1, backgroundColor: "#fff" }}>
           <Calendar
             onDayPress={(day) => {
-              if (!markedDates[day.dateString]?.disabled) {
-                setSelectedDate(day.dateString);
+              const ds = day.dateString;
+              if (!blockedDates.includes(ds)) {
+                setSelectedDate(ds);
                 setShowCalendar(false);
+              } else {
+                Alert.alert("Unavailable", "That date is already fully reserved.");
               }
             }}
-            markedDates={{
-              ...markedDates,
-              ...(selectedDate
-                ? { [selectedDate]: { selected: true, selectedColor: "blue" } }
-                : {}),
-            }}
+            markedDates={computedMarked}
+            minDate={new Date().toISOString().slice(0, 10)}
           />
           <TouchableOpacity
             style={{ padding: 15, backgroundColor: "orange" }}
@@ -260,6 +337,61 @@ export default function ItemDetails() {
           >
             <Text style={{ textAlign: "center", color: "#fff" }}>Close</Text>
           </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Conflict / Suggestions Modal */}
+      <Modal visible={conflictModal} transparent animationType="fade">
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 20,
+          }}
+        >
+          <View style={{ backgroundColor: "#fff", borderRadius: 12, padding: 16, width: "100%" }}>
+            <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 8 }}>
+              Item already reserved for that date
+            </Text>
+            {conflictInfo.blocked?.length ? (
+              <Text style={{ marginBottom: 8 }}>
+                Unavailable: {conflictInfo.blocked.join(", ")}
+              </Text>
+            ) : null}
+            <Text style={{ fontWeight: "600", marginBottom: 8 }}>Try these dates:</Text>
+            {conflictInfo.suggestions?.length ? (
+              conflictInfo.suggestions.map((sug, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={{
+                    padding: 12,
+                    borderWidth: 1,
+                    borderColor: "#ddd",
+                    borderRadius: 8,
+                    marginBottom: 8,
+                  }}
+                  onPress={() => {
+                    setConflictModal(false);
+                    preflightAndGoToSummary({ reserve_date: sug.date });
+                  }}
+                >
+                  <Text>{sug.date}</Text>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <Text style={{ color: "#555", marginBottom: 8 }}>
+                No alternatives found in the next 30 days for this quantity.
+              </Text>
+            )}
+
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+              <TouchableOpacity onPress={() => setConflictModal(false)} style={{ padding: 12 }}>
+                <Text style={{ color: "#555" }}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
     </View>

@@ -29,7 +29,7 @@ export default function Login() {
 
     try {
       const res = await axios.post(
-        "http://192.168.151.115:8000/api/api_login/",
+        "http://192.168.1.8:8000/api/login/",
         { username, password },
         { headers: { "Content-Type": "application/json" } }
       );
@@ -53,7 +53,7 @@ export default function Login() {
       // ✅ Try fetching borrower info using the access token
       try {
         const borrowerRes = await fetch(
-          "http://192.168.151.115:8000/api/me_borrower/",
+          "http://192.168.1.8:8000/api/me_borrower/",
           {
             headers: { Authorization: `Bearer ${accessToken}` },
           }
