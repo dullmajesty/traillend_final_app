@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "54959005237",
+    "project_id": "traillendnotif",
+    "storage_bucket": "traillendnotif.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:54959005237:android:4bc9ba3c335a5ab1105b7c",
+        "android_client_info": {
+          "package_name": "com.hulam.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZjr3OZbm0aQcCdXrH4F98TVO0yy1jL6o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:54959005237:android:fbb8b385ac7ba021105b7c",
+        "android_client_info": {
+          "package_name": "com.shaneirish.HULAM"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZjr3OZbm0aQcCdXrH4F98TVO0yy1jL6o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

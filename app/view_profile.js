@@ -15,7 +15,7 @@ import { useRouter } from "expo-router";
 import axios from "axios";
 
 // ✅ Use your current LAN IP (same as backend)
-const BASE_URL = "http://192.168.1.8:8000";
+const BASE_URL = "http://192.168.151.115:8000";
 
 export default function ViewProfile() {
   const router = useRouter();

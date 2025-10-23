@@ -63,7 +63,7 @@ export default function ItemDetails() {
     const fetchItemDetails = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://192.168.1.8:8000/api/inventory_list/`);
+        const response = await fetch(`http://192.168.151.115:8000/api/inventory_list/`);
         const data = await response.json();
         const selectedItem = data.find((i) => i.item_id === parseInt(id));
         if (selectedItem) setItem(selectedItem);
@@ -81,7 +81,7 @@ export default function ItemDetails() {
   useEffect(() => {
     const fetchBlocked = async () => {
       try {
-        const res = await fetch(`http://192.168.1.8:8000/api/items/${id}/blocked-dates/?days_ahead=90`);
+        const res = await fetch(`http://192.168.151.115:8000/api/items/${id}/blocked-dates/?days_ahead=90`);
         const json = await res.json();
         setBlockedDates(Array.isArray(json.blocked) ? json.blocked : []);
       } catch (e) {
@@ -139,7 +139,7 @@ export default function ItemDetails() {
 
     setChecking(true);
     try {
-      const res = await fetch(`http://192.168.1.8:8000/api/reservations/check/`, {
+      const res = await fetch(`http://192.168.151.115:8000/api/reservations/check/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -171,7 +171,7 @@ export default function ItemDetails() {
         setConflictModal(true);
         // refresh blocked dates
         try {
-          const re = await fetch(`http://192.168.1.8:8000/api/items/${id}/blocked-dates/?days_ahead=90`);
+          const re = await fetch(`http://192.168.151.115:8000/api/items/${id}/blocked-dates/?days_ahead=90`);
           const js = await re.json();
           setBlockedDates(Array.isArray(js.blocked) ? js.blocked : []);
         } catch {}

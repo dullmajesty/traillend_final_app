@@ -23,7 +23,7 @@ export default function SignUp() {
   }
 
    axios.post(
-      "http://192.168.1.8:8000/api/register/",
+      "http://192.168.151.115:8000/api/register/",
       {
         name,
         username,
