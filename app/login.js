@@ -1,18 +1,25 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  Image,
   StyleSheet,
   Switch,
   Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { setAuth } from "../lib/authStorage";
+import { LinearGradient } from "expo-linear-gradient";
+
+const BASE_URL = "http://192.168.1.8:8000";
 
 export default function Login() {
   const router = useRouter();
@@ -21,184 +28,300 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Remember me Load saved credentials when component mounts
+  useEffect(() => {
+    const loadSavedCredentials = async () => {
+      try {
+        const savedUsername = await AsyncStorage.getItem("savedUsername");
+        const savedPassword = await AsyncStorage.getItem("savedPassword");
+        const savedRemember = await AsyncStorage.getItem("rememberMe");
+
+        if (savedRemember === "true" && savedUsername && savedPassword) {
+          setUsername(savedUsername);
+          setPassword(savedPassword);
+          setRememberMe(true);
+        }
+      } catch (err) {
+        console.warn("Error loading saved credentials:", err);
+      }
+    };
+    loadSavedCredentials();
+  }, []);
+
   const handleLogin = async () => {
     if (!username || !password) {
-      alert("Please enter both username and password");
+      Alert.alert("Missing fields", "Please enter both username and password.");
       return;
     }
 
     try {
       const res = await axios.post(
-        "http://192.168.151.115:8000/api/login/",
+        `${BASE_URL}/api/login/`,
         { username, password },
         { headers: { "Content-Type": "application/json" } }
       );
 
       const data = res.data;
+      const { access, refresh } = data;
 
-      const accessToken = data.access; // JWT access token
-      const refreshToken = data.refresh;
-
-      if (!accessToken) {
-        alert("Login failed: No token received");
+      if (!access || !refresh) {
+        Alert.alert("Error", "Login failed: No tokens received");
         return;
       }
 
-      // ✅ Save tokens to AsyncStorage
-      await AsyncStorage.multiSet([
-        ["accessToken", accessToken],
-        ["refreshToken", refreshToken],
-      ]);
+      await setAuth({ access, refresh, username });
 
-      // ✅ Try fetching borrower info using the access token
+      // Handle Remember Me
+      if (rememberMe) {
+        await AsyncStorage.multiSet([
+          ["savedUsername", username],
+          ["savedPassword", password],
+          ["rememberMe", "true"],
+        ]);
+      } else {
+        await AsyncStorage.multiRemove(["savedUsername", "savedPassword", "rememberMe"]);
+      }
+
+
+      //Fetch borrower info
       try {
-        const borrowerRes = await fetch(
-          "http://192.168.151.115:8000/api/me_borrower/",
-          {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          }
-        );
-
+        const borrowerRes = await fetch(`${BASE_URL}/api/me_borrower/`, {
+          headers: { Authorization: `Bearer ${access}` },
+        });
         if (borrowerRes.ok) {
           const borrowerData = await borrowerRes.json();
-
-          // Store borrower info for later use (optional but recommended)
           await AsyncStorage.multiSet([
-            ["userID", String(borrowerData.user_id || "")],
+            ["borrowerUserID", String(borrowerData.user_id || "")],
             ["fullName", borrowerData.full_name || ""],
             ["contactNumber", borrowerData.contact_number || ""],
             ["address", borrowerData.address || ""],
           ]);
-        } else {
-          console.warn("Failed to fetch borrower info:", borrowerRes.status);
         }
-      } catch (borrowerError) {
-        console.warn("Error fetching borrower info:", borrowerError);
+      } catch (err) {
+        console.warn("Error fetching borrower info:", err);
       }
 
-      alert("Login successful!");
+      Alert.alert("Success", "Login successful!");
       router.replace("/(drawer)/AdminDashboard");
     } catch (err) {
       console.error("Login error:", err);
-      alert(err.response?.data?.message || "Login failed. Please try again.");
+      Alert.alert(
+        "Login failed",
+        err.response?.data?.message || "Invalid username or password"
+      );
     }
   };
 
   return (
-    <View style={styles.container}>
-      {/* Title */}
-      <Text style={styles.title}>TrailLend</Text>
-      <Text style={styles.subtitle}>Log In to Your Account</Text>
+    <LinearGradient colors={["#4FC3F7", "#1E88E5"]} style={styles.gradient}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          {/* Logo + Title */}
+          <View style={styles.logoContainer}>
+    
+            <Text style={styles.title}>TrailLend</Text>
+            <Text style={styles.subtitle}>
+              Empowering the Community Together 🌿
+            </Text>
+          </View>
 
-      {/* Username */}
-      <TextInput
-        style={styles.input}
-        placeholder="Username"
-        value={username}
-        onChangeText={setUsername}
-      />
+          {/* Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Log In to Your Account</Text>
 
-      {/* Password with toggle inside input */}
-      <View style={styles.passwordWrapper}>
-        <TextInput
-          style={styles.inputPassword}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry={!showPassword}
-        />
-        <TouchableOpacity
-          style={styles.eyeIcon}
-          onPress={() => setShowPassword(!showPassword)}
-        >
-          <Ionicons
-            name={showPassword ? "eye-off" : "eye"}
-            size={24}
-            color="#97c6d2"
-          />
-        </TouchableOpacity>
-      </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Username"
+              placeholderTextColor="#999"
+              value={username}
+              onChangeText={setUsername}
+            />
 
-      {/* Remember Me & Forgot Password */}
-      <View style={styles.row}>
-        <View style={styles.rememberMe}>
-          <Switch value={rememberMe} onValueChange={setRememberMe} />
-          <Text style={{ marginLeft: 8 }}>Remember Me</Text>
-        </View>
-        <TouchableOpacity>
-          <Text style={styles.forgotPassword}>Forgot Password?</Text>
-        </TouchableOpacity>
-      </View>
+            <View style={styles.passwordWrapper}>
+              <TextInput
+                style={styles.inputPassword}
+                placeholder="Password"
+                placeholderTextColor="#999"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                style={styles.eyeIcon}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={22}
+                  color="#1976D2"
+                />
+              </TouchableOpacity>
+            </View>
 
-      {/* Login Button */}
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Log In</Text>
-      </TouchableOpacity>
+            <View style={styles.row}>
+              <View style={styles.rememberMe}>
+                <Switch
+                  value={rememberMe}
+                  onValueChange={setRememberMe}
+                  thumbColor={rememberMe ? "#1976D2" : "#ccc"}
+                />
+                <Text style={{ marginLeft: 8, color: "#333" }}>Remember Me</Text>
+              </View>
+              <TouchableOpacity>
+                <Text style={styles.forgotPassword}>Forgot Password?</Text>
+              </TouchableOpacity>
+            </View>
 
-      {/* Create Account */}
-      <View style={styles.signup}>
-        <Text>Don't have an account? </Text>
-        <TouchableOpacity onPress={() => router.push("/signup")}>
-          <Text style={styles.signupText}>Create Account</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+            <TouchableOpacity activeOpacity={0.9} onPress={handleLogin}>
+              <LinearGradient
+                colors={["#64B5F6", "#1976D2"]}
+                start={[0, 0]}
+                end={[1, 0]}
+                style={styles.loginButton}
+              >
+                <Ionicons name="log-in-outline" size={20} color="#fff" />
+                <Text style={styles.buttonText}>Log In</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <View style={styles.signup}>
+              <Text style={{ color: "#333" }}>Don't have an account? </Text>
+              <TouchableOpacity onPress={() => router.push("/signup")}>
+                <Text style={styles.signupText}>Create Account</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Community Illustration */}
+          <View style={styles.illustrationContainer}>
+            <Image
+              source={require("../assets/community.png")} // 👈 optional local image (replace if needed)
+              style={styles.illustration}
+              resizeMode="contain"
+            />
+            <Text style={styles.communityText}>
+              Together, we build a stronger community.
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  gradient: {
     flex: 1,
-    paddingHorizontal: 30,
+  },
+  scrollContainer: {
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#fff",
+    paddingHorizontal: 30,
+    paddingVertical: 40,
   },
-  logo: { width: 120, height: 120, marginBottom: 20 },
-  title: { fontSize: 50, fontWeight: "bold", color: "#97c6d2" },
-  subtitle: { fontSize: 16, color: "#333", marginBottom: 20 },
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 30,
+  },
+  title: {
+    fontSize: 42,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.9)",
+    marginTop: 4,
+    textAlign: "center",
+  },
+  card: {
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderRadius: 20,
+    width: "100%",
+    padding: 20,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 6,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1976D2",
+    marginBottom: 20,
+    textAlign: "center",
+  },
   input: {
     width: "100%",
     height: 50,
-    borderColor: "#ccc",
-    borderWidth: 1,
-    borderRadius: 8,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 10,
     paddingHorizontal: 15,
     marginBottom: 15,
+    fontSize: 15,
+    color: "#333",
   },
-  passwordWrapper: { width: "100%", position: "relative", marginBottom: 15 },
+  passwordWrapper: {
+    position: "relative",
+    marginBottom: 15,
+  },
   inputPassword: {
     width: "100%",
     height: 50,
-    borderColor: "#ccc",
-    borderWidth: 1,
-    borderRadius: 8,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 10,
     paddingHorizontal: 15,
-    paddingRight: 45,
+    paddingRight: 40,
+    fontSize: 15,
+    color: "#333",
   },
   eyeIcon: { position: "absolute", right: 15, top: 13 },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
-    width: "100%",
     alignItems: "center",
     marginBottom: 20,
   },
   rememberMe: { flexDirection: "row", alignItems: "center" },
-  forgotPassword: { color: "#97c6d2", textDecorationLine: "underline" },
-  button: {
-    backgroundColor: "#97c6d2",
-    width: "100%",
-    paddingVertical: 15,
-    borderRadius: 8,
+  forgotPassword: {
+    color: "#1976D2",
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  loginButton: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 10,
+    paddingVertical: 14,
     marginBottom: 20,
   },
   buttonText: {
     color: "#fff",
-    textAlign: "center",
-    fontWeight: "bold",
+    fontWeight: "700",
     fontSize: 16,
+    marginLeft: 8,
   },
-  signup: { flexDirection: "row", alignItems: "center" },
-  signupText: { color: "#97c6d2", fontWeight: "bold" },
+  signup: { flexDirection: "row", justifyContent: "center" },
+  signupText: { color: "#1976D2", fontWeight: "700" },
+  illustrationContainer: {
+    alignItems: "center",
+    marginTop: 30,
+  },
+  illustration: {
+    width: 220,
+    height: 120,
+    opacity: 0.9,
+  },
+  communityText: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 13,
+    marginTop: 6,
+    textAlign: "center",
+  },
 });

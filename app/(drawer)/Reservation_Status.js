@@ -1,19 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
-  View, Text, TouchableOpacity, StyleSheet, FlatList,
-  ActivityIndicator, Modal, Image, Alert
-} from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  FlatList,
+  ActivityIndicator,
+  Modal,
+  Image,
+  Alert,
+  Dimensions,
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+
+const { width } = Dimensions.get("window");
 
 export default function ReservationStatus() {
-  const [selectedFilter, setSelectedFilter] = useState('Pending');
+  const [selectedFilter, setSelectedFilter] = useState("Pending");
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  const filters = ['Pending', 'Upcoming', 'Past', 'Cancelled'];
+  const filters = ["Pending", "Upcoming", "Past", "Cancelled"];
 
   useEffect(() => {
     fetchReservations();
@@ -22,165 +34,210 @@ export default function ReservationStatus() {
   const fetchReservations = async () => {
     try {
       setLoading(true);
-      setError('');
-
-      const token = await AsyncStorage.getItem('accessToken');
+      const token = await AsyncStorage.getItem("accessToken");
       if (!token) {
-        setError('No access token found. Please log in again.');
+        setError("Session expired. Please log in again.");
         setLoading(false);
         return;
       }
 
-      const response = await fetch('http://192.168.151.115:8000/api/user_reservations/', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+      const res = await fetch("http://192.168.1.8:8000/api/user_reservations/", {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      const data = await response.json();
-      if (data.success) {
-        setReservations(data.reservations);
-      } else {
-        setError('No reservations found.');
-      }
+      const data = await res.json();
+      if (data.success) setReservations(data.reservations);
+      else setError("No reservations found.");
     } catch (err) {
-      console.error('Error fetching reservations:', err);
-      setError('Something went wrong.');
+      console.error(err);
+      setError("Failed to load reservations.");
     } finally {
       setLoading(false);
     }
   };
 
   const cancelReservation = async (id) => {
-    Alert.alert(
-      'Cancel Reservation',
-      'Are you sure you want to cancel this reservation?',
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Yes',
-          onPress: async () => {
-            try {
-              const token = await AsyncStorage.getItem('accessToken');
-              const res = await fetch(`http://192.168.151.115:8000/api/reservations/${id}/cancel/`, {
-                method: 'DELETE',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${token}`,
-                },
-              });
-              const data = await res.json();
-              if (data.success) {
-                Alert.alert('Success', 'Your reservation has been successfully cancelled.');
-                setModalVisible(false);
-                fetchReservations(); // refresh list
-              } else {
-                Alert.alert('Error', data.message || 'Unable to cancel reservation.');
+    Alert.alert("Cancel Reservation", "Are you sure you want to cancel this?", [
+      { text: "No", style: "cancel" },
+      {
+        text: "Yes",
+        onPress: async () => {
+          try {
+            const token = await AsyncStorage.getItem("accessToken");
+            const res = await fetch(
+              `http://192.168.1.8:8000/api/reservations/${id}/cancel/`,
+              {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
               }
-            } catch (error) {
-              console.error('Cancel error:', error);
-              Alert.alert('Error', 'Something went wrong.');
+            );
+            const data = await res.json();
+            if (data.success) {
+              Alert.alert("Success", "Reservation cancelled successfully!");
+              setModalVisible(false);
+              fetchReservations();
+            } else {
+              Alert.alert("Error", data.message || "Unable to cancel reservation.");
             }
-          },
+          } catch (error) {
+            console.error(error);
+            Alert.alert("Error", "Something went wrong.");
+          }
         },
-      ]
-    );
+      },
+    ]);
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "pending":
+        return "#FFC107";
+      case "approved":
+        return "#4CAF50";
+      case "rejected":
+        return "#E53935";
+      case "cancelled":
+        return "#757575";
+      case "returned":
+        return "#1976D2";
+      default:
+        return "#555";
+    }
   };
 
   const filteredReservations = reservations.filter((r) => {
-    if (selectedFilter === 'Pending') return r.status === 'pending';
-    if (selectedFilter === 'Upcoming') return r.status === 'approved';
-    if (selectedFilter === 'Past') return r.status === 'returned';
-    if (selectedFilter === 'Cancelled') return r.status === 'cancelled' || r.status === 'rejected';
+    if (selectedFilter === "Pending") return r.status === "pending";
+    if (selectedFilter === "Upcoming") return r.status === "approved";
+    if (selectedFilter === "Past") return r.status === "returned";
+    if (selectedFilter === "Cancelled")
+      return r.status === "cancelled" || r.status === "rejected";
     return false;
   });
 
   const renderReservation = ({ item }) => (
     <TouchableOpacity
       style={styles.card}
+      activeOpacity={0.9}
       onPress={() => {
         setSelectedReservation(item);
         setModalVisible(true);
       }}
     >
-      {item.image_url ? (
-        <Image source={{ uri: item.image_url }} style={styles.image} />
-      ) : (
-        <View style={[styles.image, { backgroundColor: '#ddd' }]} />
-      )}
+      <Image
+        source={
+          item.image_url
+            ? { uri: item.image_url }
+            : require("../../assets/default_item.png")
+        }
+        style={styles.image}
+      />
       <View style={{ flex: 1, marginLeft: 10 }}>
         <Text style={styles.itemName}>{item.item_name}</Text>
-        <Text style={styles.detail}>Date: {item.date}</Text>
-        <Text style={[styles.status, { color: getStatusColor(item.status) }]}>
-          {item.status.toUpperCase()}
-        </Text>
+        <Text style={styles.detail}>Borrowed: {item.date_borrowed || "—"}</Text>
+        <Text style={styles.detail}>Return: {item.date_return || "—"}</Text>
+        <View style={[styles.statusPill, { backgroundColor: getStatusColor(item.status) + "33" }]}>
+          <Text style={[styles.status, { color: getStatusColor(item.status) }]}>
+            {item.status.toUpperCase()}
+          </Text>
+        </View>
       </View>
+      <Ionicons name="chevron-forward" size={20} color="#888" />
     </TouchableOpacity>
   );
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return '#FFC107';
-      case 'approved': return '#4BB543';
-      case 'rejected': return '#D32F2F';
-      case 'cancelled': return '#888';
-      case 'returned': return '#97c6d2';
-      default: return '#555';
-    }
-  };
-
   return (
-    <View style={styles.container}>
-      <View style={styles.filterContainer}>
-        <Text style={styles.filterLabel}>FILTER</Text>
-        <View style={styles.buttonsContainer}>
-          {filters.map((filter) => (
-            <TouchableOpacity
-              key={filter}
-              style={[styles.filterButton, selectedFilter === filter && styles.selectedButton]}
-              onPress={() => setSelectedFilter(filter)}
+    <LinearGradient colors={["#4FC3F7", "#1E88E5"]} style={styles.container}>
+
+      {/* Filter Buttons */}
+      <View style={styles.filterWrapper}>
+        {filters.map((filter) => (
+          <TouchableOpacity
+            key={filter}
+            style={[
+              styles.filterPill,
+              selectedFilter === filter && styles.selectedPill,
+            ]}
+            onPress={() => setSelectedFilter(filter)}
+          >
+            <Text
+              style={[
+                styles.filterText,
+                selectedFilter === filter && styles.selectedText,
+              ]}
             >
-              <Text style={[styles.buttonText, selectedFilter === filter && styles.selectedText]}>
-                {filter}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+              {filter}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      <View style={styles.statusContainer}>
+      {/* Reservation List */}
+      <View style={styles.listContainer}>
         {loading ? (
-          <ActivityIndicator size="large" color="#97c6d2" />
+          <ActivityIndicator size="large" color="#fff" />
         ) : error ? (
           <Text style={styles.noData}>{error}</Text>
         ) : filteredReservations.length === 0 ? (
-          <Text style={styles.noData}>No {selectedFilter.toLowerCase()} reservations found.</Text>
+          <Text style={styles.noData}>
+            No {selectedFilter.toLowerCase()} reservations found.
+          </Text>
         ) : (
           <FlatList
             data={filteredReservations}
             keyExtractor={(item) => item.id.toString()}
             renderItem={renderReservation}
+            showsVerticalScrollIndicator={false}
           />
         )}
       </View>
 
-      {/* Reservation Details Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
+      {/* MODAL */}
+      <Modal visible={modalVisible} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
             {selectedReservation && (
               <>
-                <Text style={styles.modalTitle}>{selectedReservation.item_name}</Text>
-                <Text>Date: {selectedReservation.date}</Text>
-                <Text>Quantity: {selectedReservation.quantity}</Text>
-                <Text>Status: {selectedReservation.status.toUpperCase()}</Text>
-                <Text>Message: {selectedReservation.message || 'N/A'}</Text>
+                <Ionicons
+                  name="information-circle-outline"
+                  size={30}
+                  color="#1E88E5"
+                />
+                <Text style={styles.modalTitle}>
+                  {selectedReservation.item_name}
+                </Text>
+
                 {selectedReservation.image_url && (
-                  <Image source={{ uri: selectedReservation.image_url }} style={styles.modalImage} />
+                  <Image
+                    source={{ uri: selectedReservation.image_url }}
+                    style={styles.modalImage}
+                  />
                 )}
-                {selectedReservation.status === 'pending' && (
+
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalDetail}>
+                    <Text style={styles.bold}>Borrowed:</Text>{" "}
+                    {selectedReservation.date_borrowed || "—"}
+                  </Text>
+                  <Text style={styles.modalDetail}>
+                    <Text style={styles.bold}>Return:</Text>{" "}
+                    {selectedReservation.date_return || "—"}
+                  </Text>
+                  <Text style={styles.modalDetail}>
+                    <Text style={styles.bold}>Quantity:</Text>{" "}
+                    {selectedReservation.quantity}
+                  </Text>
+                  <Text style={styles.modalDetail}>
+                    <Text style={styles.bold}>Status:</Text>{" "}
+                    <Text style={{ color: getStatusColor(selectedReservation.status) }}>
+                      {selectedReservation.status.toUpperCase()}
+                    </Text>
+                  </Text>
+                  <Text style={styles.modalDetail}>
+                    <Text style={styles.bold}>Message:</Text>{" "}
+                    {selectedReservation.message || "N/A"}
+                  </Text>
+                </View>
+
+                {selectedReservation.status === "pending" && (
                   <TouchableOpacity
                     style={styles.cancelButton}
                     onPress={() => cancelReservation(selectedReservation.id)}
@@ -188,82 +245,140 @@ export default function ReservationStatus() {
                     <Text style={styles.cancelText}>Cancel Reservation</Text>
                   </TouchableOpacity>
                 )}
+
                 <TouchableOpacity
                   style={styles.closeButton}
                   onPress={() => setModalVisible(false)}
                 >
-                  <Text style={{ color: '#fff' }}>Close</Text>
+                  <Text style={styles.closeText}>Close</Text>
                 </TouchableOpacity>
               </>
             )}
           </View>
         </View>
       </Modal>
-    </View>
+    </LinearGradient>
   );
 }
 
+// =================== STYLES ===================
 const styles = StyleSheet.create({
-  container: { padding: 20, flex: 1, backgroundColor: '#fff' },
-  filterContainer: { marginBottom: 20 },
-  filterLabel: { color: '#000', fontWeight: 'bold', marginBottom: 10, fontSize: 16 },
-  buttonsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
-  filterButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#97c6d2',
-    backgroundColor: '#97c6d2',
-    marginRight: 5,
-    marginBottom: 5,
-  },
-  selectedButton: { backgroundColor: '#FFC107', borderColor: '#FFC107' },
-  buttonText: { color: '#fff', fontWeight: '600' },
-  selectedText: { color: '#1B1B4D' },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f9f9f9',
-    padding: 10,
-    marginBottom: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#eee',
-  },
-  image: { width: 70, height: 70, borderRadius: 8 },
-  itemName: { fontWeight: 'bold', fontSize: 16, color: '#1B1B4D' },
-  detail: { fontSize: 14, color: '#555' },
-  status: { fontSize: 14, fontWeight: '700', marginTop: 3 },
-  noData: { color: '#97c6d2', textAlign: 'center', fontSize: 16, marginTop: 30 },
-  modalContainer: {
+  container: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 50,
   },
-  modalContent: {
-    backgroundColor: '#fff',
-    width: '85%',
-    borderRadius: 10,
+  header: {
+    color: "#fff",
+    fontSize: 22,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 15,
+  },
+  filterWrapper: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 15,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 30,
+    padding: 5,
+  },
+  filterPill: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  selectedPill: {
+    backgroundColor: "#FFC107",
+  },
+  filterText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  selectedText: {
+    color: "#1E1E1E",
+    fontWeight: "700",
+  },
+  listContainer: { flex: 1 },
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+  },
+  image: { width: 70, height: 70, borderRadius: 10 },
+  itemName: { fontSize: 16, fontWeight: "700", color: "#1E88E5" },
+  detail: { fontSize: 13, color: "#555" },
+  statusPill: {
+    marginTop: 5,
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  status: { fontSize: 12, fontWeight: "700" },
+  noData: {
+    color: "#fff",
+    textAlign: "center",
+    fontSize: 16,
+    marginTop: 50,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
     padding: 20,
-    alignItems: 'center',
+    alignItems: "center",
+    width: width * 0.85,
+    elevation: 6,
   },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10 },
-  modalImage: { width: 200, height: 200, borderRadius: 10, marginVertical: 10 },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1E88E5",
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  modalImage: {
+    width: width * 0.6,
+    height: width * 0.6,
+    borderRadius: 12,
+    marginVertical: 10,
+  },
+  modalContent: { width: "100%", marginBottom: 10 },
+  modalDetail: {
+    fontSize: 14,
+    color: "#333",
+    marginVertical: 2,
+  },
+  bold: { fontWeight: "600", color: "#000" },
   cancelButton: {
-    marginTop: 15,
-    backgroundColor: '#D32F2F',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    backgroundColor: "#E53935",
     borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 25,
+    marginTop: 8,
   },
-  cancelText: { color: '#fff', fontWeight: 'bold' },
+  cancelText: { color: "#fff", fontWeight: "bold" },
   closeButton: {
-    marginTop: 10,
-    backgroundColor: '#97c6d2',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    backgroundColor: "#1E88E5",
     borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 30,
+    marginTop: 10,
   },
+  closeText: { color: "#fff", fontWeight: "bold" },
 });

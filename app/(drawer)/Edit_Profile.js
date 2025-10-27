@@ -7,12 +7,15 @@ import {
   Image,
   StyleSheet,
   Alert,
+  ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
 
-const BASE_URL = "http://192.168.151.115:8000";
+const BASE_URL = "http://192.168.1.8:8000";
 
 export default function EditProfile() {
   const [image, setImage] = useState(null);
@@ -22,18 +25,19 @@ export default function EditProfile() {
   const [address, setAddress] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(true);
 
   const absUrl = (u) => (!u ? "" : u.startsWith("http") ? u : `${BASE_URL}${u}`);
 
+  // Fetch profile data
   const fetchProfile = async () => {
     try {
       const storedUsername = await AsyncStorage.getItem("username");
-      const token =
-        (await AsyncStorage.getItem("access")) ||
-        (await AsyncStorage.getItem("userToken"));
+      const token = await AsyncStorage.getItem("accessToken");
 
       if (!storedUsername || !token) {
-        Alert.alert("Session", "Please log in again.");
+        Alert.alert("Session expired", "Please log in again.");
+        setLoading(false);
         return;
       }
 
@@ -42,7 +46,6 @@ export default function EditProfile() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
       if (data.success) {
@@ -58,6 +61,8 @@ export default function EditProfile() {
     } catch (err) {
       console.error("fetchProfile:", err);
       Alert.alert("Error", "Failed to fetch profile.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -82,12 +87,9 @@ export default function EditProfile() {
         return;
       }
 
-      const token =
-        (await AsyncStorage.getItem("access")) ||
-        (await AsyncStorage.getItem("userToken"));
-
+      const token = await AsyncStorage.getItem("accessToken");
       if (!token) {
-        Alert.alert("Session", "Please log in again.");
+        Alert.alert("Session expired", "Please log in again.");
         return;
       }
 
@@ -98,7 +100,6 @@ export default function EditProfile() {
       formData.append("address", address);
       if (newPassword) formData.append("password", newPassword);
 
-      // Only append a *new* local image (not an existing http URL)
       if (image && !image.startsWith("http")) {
         formData.append("profile_image", {
           uri: image,
@@ -109,26 +110,17 @@ export default function EditProfile() {
 
       const res = await fetch(`${BASE_URL}/api/update_profile/`, {
         method: "POST",
-        headers: {
-          // IMPORTANT: don't set Content-Type for FormData; fetch will set the boundary
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 
       const data = await res.json();
 
-      if (!res.ok) {
-        // Show backend message if available
-        Alert.alert("Error", data?.message ? String(data.message) : `Update failed (${res.status})`);
-        return;
-      }
-
       if (data.success) {
         Alert.alert("Success", "Profile updated successfully!");
         setNewPassword("");
         setConfirmPassword("");
-        fetchProfile(); // refresh to get the new image URL, etc.
+        fetchProfile();
       } else {
         Alert.alert("Error", data.message || "Failed to update profile.");
       }
@@ -138,61 +130,167 @@ export default function EditProfile() {
     }
   };
 
+  if (loading) {
+    return (
+      <LinearGradient colors={["#4FC3F7", "#1E88E5"]} style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={{ color: "#fff", marginTop: 10 }}>Loading profile...</Text>
+      </LinearGradient>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <TouchableOpacity onPress={pickImage} activeOpacity={0.8}>
-        <Image
-          source={image ? { uri: image } : require("../../assets/default_profile.jpg")}
-          style={styles.profileImage}
-        />
-        <View style={styles.editIconContainer}>
-          <Ionicons name="create-outline" size={18} color="#fff" />
+    <LinearGradient colors={["#4FC3F7", "#1E88E5"]} style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        {/* Profile Section */}
+        <View style={styles.profileHeader}>
+          <TouchableOpacity onPress={pickImage} activeOpacity={0.8}>
+            <Image
+              source={
+                image ? { uri: image } : require("../../assets/default_profile.jpg")
+              }
+              style={styles.profileImage}
+            />
+            <View style={styles.editIconContainer}>
+              <Ionicons name="camera" size={18} color="#fff" />
+            </View>
+          </TouchableOpacity>
+          <Text style={styles.subtitle}>Update your account details below</Text>
         </View>
-      </TouchableOpacity>
 
-      <TextInput style={styles.input} placeholder="Full Name" value={name} onChangeText={setName} />
-      <TextInput style={styles.input} placeholder="Username" value={username} editable={false} />
-      <TextInput style={styles.input} placeholder="Contact Number" value={mobile} onChangeText={setMobile} keyboardType="phone-pad" />
-      <TextInput style={styles.input} placeholder="Address" value={address} onChangeText={setAddress} />
+        {/* Form Card */}
+        <View style={styles.card}>
+          <TextInput
+            style={styles.input}
+            placeholder="Full Name"
+            value={name}
+            onChangeText={setName}
+          />
+          <TextInput
+            style={[styles.input, { backgroundColor: "#f1f1f1" }]}
+            placeholder="Username"
+            value={username}
+            editable={false}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Contact Number"
+            value={mobile}
+            onChangeText={setMobile}
+            keyboardType="phone-pad"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Address"
+            value={address}
+            onChangeText={setAddress}
+          />
 
-      <TextInput
-        style={styles.input}
-        placeholder="New Password (optional)"
-        secureTextEntry
-        value={newPassword}
-        onChangeText={setNewPassword}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Confirm Password"
-        secureTextEntry
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-      />
+          <TextInput
+            style={styles.input}
+            placeholder="New Password (optional)"
+            secureTextEntry
+            value={newPassword}
+            onChangeText={setNewPassword}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Confirm Password"
+            secureTextEntry
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+          />
+        </View>
 
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-        <Text style={styles.saveButtonText}>Save Changes</Text>
-      </TouchableOpacity>
-    </View>
+        {/* Save Button */}
+        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+          <LinearGradient
+            colors={["#64B5F6", "#1976D2"]}
+            style={styles.saveGradient}
+          >
+            <Ionicons name="checkmark-circle" size={20} color="#fff" />
+            <Text style={styles.saveButtonText}>Save Changes</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </ScrollView>
+    </LinearGradient>
   );
 }
 
+// ================= STYLES =================
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: "#97c6d2" },
+  container: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  scroll: { padding: 20, paddingBottom: 40 },
+  profileHeader: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
   profileImage: {
-    width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: "#fff",
-    alignSelf: "center", marginBottom: 20,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 3,
+    borderColor: "#fff",
   },
   editIconContainer: {
-    position: "absolute", bottom: 15, right: 120, width: 28, height: 28,
-    alignItems: "center", justifyContent: "center", backgroundColor: "#4A90E2",
-    borderRadius: 14, borderWidth: 1, borderColor: "#fff",
+    position: "absolute",
+    bottom: 0,
+    right: -4,
+    backgroundColor: "#1976D2",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#fff",
+    marginTop: 12,
+  },
+  subtitle: {
+    color: "#e0f7fa",
+    fontSize: 14,
+    marginTop: 2,
+  },
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
   },
   input: {
-    backgroundColor: "#fff", padding: 10, borderRadius: 8, marginVertical: 5,
+    backgroundColor: "#fff",
+    padding: 12,
+    borderRadius: 10,
+    marginVertical: 6,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
   },
   saveButton: {
-    backgroundColor: "#4A90E2", padding: 12, borderRadius: 8, marginTop: 10, alignItems: "center",
+    marginTop: 20,
+    borderRadius: 12,
+    overflow: "hidden",
   },
-  saveButtonText: { color: "#fff", fontWeight: "600" },
+  saveGradient: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  saveButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
 });

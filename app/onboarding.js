@@ -7,7 +7,7 @@ const { width, height } = Dimensions.get("window");
 const slides = [
   {
     key: "1",
-    title: "Borrow School Equipment Hassle-Free",
+    title: "Borrow Barangay Equipment Hassle-Free",
     description: "Easily borrow items like sports gear, lab equipment, or event supplies with just a few taps. Track your requests instantly!",
     image: require("../assets/onboard1.png"),
   },
@@ -90,11 +90,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   slide: { width, alignItems: "center", padding: 20, justifyContent: "center" },
   image: { width: 250, height: 250, marginBottom: 20 },
-  title: { fontSize: 22, fontWeight: "bold", textAlign: "center", marginBottom: 10, color: "#97c6d2" },
+  title: { fontSize: 22, fontWeight: "bold", textAlign: "center", marginBottom: 10, color: "#64B5F6" },
   description: { fontSize: 16, textAlign: "center", color: "#333" },
   dotsContainer: { flexDirection: "row", justifyContent: "center", marginBottom: 20 },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#ccc", marginHorizontal: 5 },
-  activeDot: { backgroundColor: "#97c6d2" },
-  button: { backgroundColor: "#97c6d2", paddingVertical: 12, marginHorizontal: 40, borderRadius: 8, marginBottom: 50 },
+  activeDot: { backgroundColor: "#64B5F6" },
+  button: { backgroundColor: "#64B5F6", paddingVertical: 12, marginHorizontal: 40, borderRadius: 8, marginBottom: 50 },
   buttonText: { color: "#fff", textAlign: "center", fontWeight: "bold", fontSize: 16 },
 });

@@ -17,7 +17,7 @@ export default function Index() {
   return (
     <View style={styles.container}>
       <Image
-        source={require("../assets/HULAM.png")} // Replace with your logo path
+        source={require("../assets/TRAILLEND-WHITE.png")} // Replace with your logo path
         style={styles.logo}
         resizeMode="contain"
       />
@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#97c6d2", // optional: set a background color
+    backgroundColor: "#64B5F6", // optional: set a background color
   },
   logo: {
     width: 200,

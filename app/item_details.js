@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Modal,
   Alert,
   ActivityIndicator,
 } from "react-native";
@@ -15,30 +14,29 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Calendar } from "react-native-calendars";
 import * as ImagePicker from "expo-image-picker";
+import Modal from "react-native-modal";
+import { LinearGradient } from "expo-linear-gradient";
 
 export default function ItemDetails() {
   const router = useRouter();
-  const { id } = useLocalSearchParams(); // item_id from list screen
+  const { id } = useLocalSearchParams();
 
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  // Calendar / reservation state
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [blockedDates, setBlockedDates] = useState([]); // ["YYYY-MM-DD", ...]
+  const [borrowDate, setBorrowDate] = useState(null);
+  const [returnDate, setReturnDate] = useState(null);
+  const [availableQty, setAvailableQty] = useState(null);
+  const [borrowQty, setBorrowQty] = useState("");
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [selectingType, setSelectingType] = useState("borrow");
+  const [markedDates, setMarkedDates] = useState({});
   const [checking, setChecking] = useState(false);
-
-  // Conflict modal state
-  const [conflictModal, setConflictModal] = useState(false);
-  const [conflictInfo, setConflictInfo] = useState({ blocked: [], suggestions: [] });
-
-  // Form fields
+  const [priority, setPriority] = useState("Low");
   const [message, setMessage] = useState("");
   const [letterPhoto, setLetterPhoto] = useState(null);
   const [idPhoto, setIdPhoto] = useState(null);
-  const [borrowQty, setBorrowQty] = useState("");
-  const [priority, setPriority] = useState("Low"); // "Low" | "Medium" | "High"
+  const [calendarMap, setCalendarMap] = useState({});
+  const [calendarLoading, setCalendarLoading] = useState(false);
 
   const URGENCY_OPTIONS = [
     { key: "High", display: "High — Bereavement" },
@@ -46,117 +44,147 @@ export default function ItemDetails() {
     { key: "Low", display: "Low — General" },
   ];
 
-  // Build markedDates from blocked + selected
-  const computedMarked = useMemo(() => {
-    const md = {};
-    blockedDates.forEach((d) => {
-      md[d] = { disabled: true, disableTouchEvent: true, marked: true, dotColor: "red" };
-    });
-    if (selectedDate) {
-      md[selectedDate] = { ...(md[selectedDate] || {}), selected: true, selectedColor: "blue" };
-    }
-    return md;
-  }, [blockedDates, selectedDate]);
-
-  // Fetch item details (you already have this list endpoint)
   useEffect(() => {
-    const fetchItemDetails = async () => {
-      setLoading(true);
+    const fetchItem = async () => {
       try {
-        const response = await fetch(`http://192.168.151.115:8000/api/inventory_list/`);
-        const data = await response.json();
-        const selectedItem = data.find((i) => i.item_id === parseInt(id));
-        if (selectedItem) setItem(selectedItem);
-        else console.warn("⚠️ Item not found with ID:", id);
-      } catch (error) {
-        console.error("❌ Error fetching item details:", error);
+        const res = await fetch("http://192.168.1.8:8000/api/inventory_list/");
+        const data = await res.json();
+        const found = data.find((i) => i.item_id === parseInt(id));
+        setItem(found);
+      } catch (e) {
+        console.warn(e);
       } finally {
         setLoading(false);
       }
     };
-    if (id) fetchItemDetails();
+    fetchItem();
   }, [id]);
 
-  // Fetch fully-booked (blocked) dates for this item (next 90 days)
-  useEffect(() => {
-    const fetchBlocked = async () => {
-      try {
-        const res = await fetch(`http://192.168.151.115:8000/api/items/${id}/blocked-dates/?days_ahead=90`);
-        const json = await res.json();
-        setBlockedDates(Array.isArray(json.blocked) ? json.blocked : []);
-      } catch (e) {
-        console.warn("Failed to fetch blocked dates", e);
-      }
-    };
-    if (id) fetchBlocked();
-  }, [id]);
-
-  // Image picker helper
-  const pickImage = async (setImage) => {
+  const fetchAvailabilityMap = async () => {
     try {
-      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permissionResult.granted) {
-        Alert.alert("Permission required", "Camera access is needed to take or choose photos.");
-        return;
-      }
+      setCalendarLoading(true);
+      const res = await fetch(`http://192.168.1.8:8000/api/items/${id}/availability-map/`);
+      const json = await res.json();
+      const map = json.calendar || {};
+      setCalendarMap(map);
 
-      Alert.alert("Upload Photo", "Choose an option", [
-        {
-          text: "Take Photo",
-          onPress: async () => {
-            const result = await ImagePicker.launchCameraAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
-              allowsEditing: true,
-              quality: 0.7,
-            });
-            if (!result.canceled) setImage(result.assets[0].uri);
-          },
-        },
-        {
-          text: "Choose from Gallery",
-          onPress: async () => {
-            const result = await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
-              allowsEditing: true,
-              quality: 0.7,
-            });
-            if (!result.canceled) setImage(result.assets[0].uri);
-          },
-        },
-        { text: "Cancel", style: "cancel" },
-      ]);
-    } catch (error) {
-      console.error("❌ Error picking image:", error);
+      const marks = {};
+      Object.entries(map).forEach(([date, info]) => {
+        if (info.status === "fully_reserved") {
+          marks[date] = {
+            disabled: true,
+            disableTouchEvent: true,
+            customStyles: {
+              container: { backgroundColor: "#ffcccc" },
+              text: { color: "#a00", fontWeight: "bold" },
+            },
+          };
+        } else {
+          marks[date] = {
+            customStyles: {
+              container: { backgroundColor: "#e6ffe6" },
+              text: { color: "#008000", fontWeight: "600" },
+            },
+          };
+        }
+      });
+      setMarkedDates(marks);
+    } catch (e) {
+      console.warn("Failed to fetch map:", e);
+    } finally {
+      setCalendarLoading(false);
     }
   };
 
-  // PRE-FLIGHT CHECK ONLY (no saving here)
-  const preflightAndGoToSummary = async (overrideDates) => {
-    const reserve_date = overrideDates?.reserve_date || selectedDate;
+  useEffect(() => {
+    if (showCalendarModal) fetchAvailabilityMap();
+  }, [showCalendarModal]);
 
-    if (!reserve_date) return Alert.alert("Select date", "Please choose a date first.");
-    if (!borrowQty) return Alert.alert("Quantity required", "Please enter how many you need.");
+  const fetchAvailability = async (date) => {
+    try {
+      const res = await fetch(
+        `http://192.168.1.8:8000/api/items/${id}/availability/?date=${date}`
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      const qty = data.available_qty ?? data.remaining_qty ?? data.available ?? 0;
+      setAvailableQty(qty);
+      return data;
+    } catch (e) {
+      console.warn("Availability fetch error:", e);
+      return null;
+    }
+  };
+
+  const handleSaveDate = () => {
+    if (!availableQty && availableQty !== 0) return Alert.alert("Select a date first.");
+    if (!borrowQty) return Alert.alert("Enter quantity to borrow.");
+    if (parseInt(borrowQty) > availableQty)
+      return Alert.alert("Quantity exceeds available items.");
+    setShowCalendarModal(false);
+  };
+
+  const pickImage = async (setImage) => {
+    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permissionResult.granted) {
+      Alert.alert("Permission required", "Camera access is needed.");
+      return;
+    }
+
+    Alert.alert("Upload Photo", "Choose an option", [
+      {
+        text: "Take Photo",
+        onPress: async () => {
+          const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.7,
+          });
+          if (!result.canceled) setImage(result.assets[0].uri);
+        },
+      },
+      {
+        text: "Choose from Gallery",
+        onPress: async () => {
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.7,
+          });
+          if (!result.canceled) setImage(result.assets[0].uri);
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const preflightAndGoToSummary = async () => {
+    if (!borrowDate || !returnDate)
+      return Alert.alert("Missing Dates", "Select both borrow and return dates.");
+    if (!borrowQty)
+      return Alert.alert("Quantity required", "Please enter how many you need.");
 
     setChecking(true);
     try {
-      const res = await fetch(`http://192.168.151.115:8000/api/reservations/check/`, {
+      const res = await fetch("http://192.168.1.8:8000/api/reservations/check/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           item_id: Number(id),
           qty: Number(borrowQty),
-          date: reserve_date, // single day
+          start_date: borrowDate,
+          end_date: returnDate,
         }),
       });
 
       if (res.status === 200) {
-        // ✅ available — go to summary; NO saving here
         router.push({
           pathname: "/item_reservation_summary",
           params: {
             name: item?.name,
             qty: String(borrowQty),
-            date: reserve_date,
+            start_date: borrowDate,
+            end_date: returnDate,
             message,
             priority,
             image: item?.image,
@@ -167,293 +195,300 @@ export default function ItemDetails() {
         });
       } else if (res.status === 409) {
         const data = await res.json();
-        setConflictInfo({ blocked: data.blocked || [], suggestions: data.suggestions || [] });
-        setConflictModal(true);
-        // refresh blocked dates
-        try {
-          const re = await fetch(`http://192.168.151.115:8000/api/items/${id}/blocked-dates/?days_ahead=90`);
-          const js = await re.json();
-          setBlockedDates(Array.isArray(js.blocked) ? js.blocked : []);
-        } catch {}
+        Alert.alert("Unavailable", `Next available: ${data.suggestions?.[0]?.date || "N/A"}`);
       } else {
-        const text = await res.text();
-        let data; try { data = JSON.parse(text); } catch { data = { detail: text || "Unknown error" }; }
+        const data = await res.json();
         Alert.alert("Error", data.detail || "Could not check availability.");
       }
-    } catch (e) {
+    } catch {
       Alert.alert("Network error", "Please check your connection.");
     } finally {
       setChecking(false);
     }
   };
 
-  if (loading) {
+  if (loading)
     return (
       <View style={styles.centered}>
-        <Text style={{ color: "#fff" }}>Loading item details...</Text>
+        <ActivityIndicator color="#fff" />
       </View>
     );
-  }
-
-  if (!item) {
-    return (
-      <View style={styles.centered}>
-        <Text style={{ color: "#fff" }}>Item not found.</Text>
-      </View>
-    );
-  }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#97c6d2" }}>
+    <LinearGradient colors={["#4FC3F7", "#4FC3F7"]} style={{ flex: 1 }}>
       {/* Header */}
       <View style={styles.header}>
-        <Ionicons name="arrow-back" size={28} color="#fff" onPress={() => router.back()} />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={22} color="#fff" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Item Details</Text>
       </View>
 
-      <ScrollView style={styles.scrollContainer} contentContainerStyle={{ paddingBottom: 120 }}>
-        {/* Image */}
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.imageWrapper}>
           <Image
-            source={{
-              uri: item.image ? item.image : "https://via.placeholder.com/150?text=No+Image",
-            }}
+            source={{ uri: item.image || "https://via.placeholder.com/200" }}
             style={styles.itemImage}
-            resizeMode="contain"
           />
         </View>
 
-        {/* Info */}
-        <Text style={styles.itemName}>{item.name || "Item Name"}</Text>
-        <Text style={styles.itemOwner}>Owner: {item.owner || "Barangay Kauswagan"}</Text>
+        <Text style={styles.itemName}>{item.name}</Text>
+        <Text style={styles.itemOwner}>Owner: {item.owner}</Text>
+        <Text style={styles.itemDesc}>{item.description}</Text>
 
-        <Text style={styles.detailsTitle}>Description:</Text>
-        <Text style={styles.detailsText}>{item.description || "No description provided."}</Text>
-
-        {/* Available + Quantity */}
-        <View style={styles.availableContainer}>
-          <Text style={styles.availableText}>Available: {item.qty || "0"}</Text>
-          <TextInput
-            style={styles.qtyInput}
-            placeholder="Enter quantity"
-            placeholderTextColor="#666"
-            keyboardType="numeric"
-            value={borrowQty}
-            onChangeText={setBorrowQty}
-          />
+        {/* Date Selection */}
+        <View style={styles.dateRow}>
+          {["borrow", "return"].map((type) => (
+            <TouchableOpacity
+              key={type}
+              style={styles.dateBox}
+              onPress={() => {
+                setSelectingType(type);
+                setShowCalendarModal(true);
+              }}
+            >
+              <Ionicons name="calendar-outline" size={20} color="#555" />
+              <Text style={styles.dateText}>
+                {type === "borrow" ? borrowDate || "Borrow Date" : returnDate || "Return Date"}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {/* Select Date */}
-        <Text style={styles.label}>Select Date:</Text>
-        <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowCalendar(true)}>
-          <Ionicons name="calendar-outline" size={28} color="#fff" />
-        </TouchableOpacity>
-        {selectedDate && (
-          <Text style={{ color: "#fff", textAlign: "center", marginBottom: 15 }}>
-            Selected: {selectedDate}
-          </Text>
+        {availableQty !== null && (
+          <Text style={styles.availableText}>Available: {availableQty} item(s)</Text>
         )}
 
-        {/* Upload Letter */}
-        <TouchableOpacity style={styles.uploadBtn} onPress={() => pickImage(setLetterPhoto)}>
-          <Text style={styles.uploadText}>Take picture of letter</Text>
-        </TouchableOpacity>
-        {letterPhoto ? <Image source={{ uri: letterPhoto }} style={styles.previewImage} /> : null}
+        <View style={styles.qtyDisplay}>
+          <Text style={styles.qtyText}>Borrow Qty: {borrowQty || "—"}</Text>
+        </View>
 
-        {/* Upload Valid ID */}
+        {/* Upload Buttons */}
+        <TouchableOpacity
+          style={styles.uploadBtn}
+          onPress={() => pickImage(setLetterPhoto)}
+        >
+          <Text style={styles.uploadText}>Upload Letter</Text>
+        </TouchableOpacity>
+        {letterPhoto && <Image source={{ uri: letterPhoto }} style={styles.preview} />}
+
         <TouchableOpacity style={styles.uploadBtn} onPress={() => pickImage(setIdPhoto)}>
-          <Text style={styles.uploadText}>Take picture of valid ID</Text>
+          <Text style={styles.uploadText}>Upload Valid ID</Text>
         </TouchableOpacity>
-        {idPhoto ? <Image source={{ uri: idPhoto }} style={styles.previewImage} /> : null}
+        {idPhoto && <Image source={{ uri: idPhoto }} style={styles.preview} />}
 
-        {/* Priority / Urgency */}
-        <Text style={styles.label}>Priority</Text>
-        <View style={styles.pillRow}>
+        {/* Priority Pills */}
+        <Text style={styles.label}>Priority:</Text>
+        <View style={styles.priorityRow}>
           {URGENCY_OPTIONS.map((opt) => (
             <TouchableOpacity
               key={opt.key}
-              onPress={() => setPriority(opt.key)}
               style={[styles.pill, priority === opt.key && styles.pillSelected]}
+              onPress={() => setPriority(opt.key)}
             >
-              <Text style={[styles.pillText, priority === opt.key && styles.pillTextSelected]}>
+              <Text
+                style={[
+                  styles.pillText,
+                  priority === opt.key && styles.pillTextSelected,
+                ]}
+              >
                 {opt.display}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={styles.helperText}>
-          {priority === "High"
-            ? "Bereavement Request: immediate attention by Admin."
-            : priority === "Medium"
-            ? "Event Request: moderate urgency handled by Admin/Officer."
-            : "General Request: handled in normal queue time."}
-        </Text>
 
-        {/* Message */}
         <Text style={styles.label}>Message:</Text>
         <TextInput
-          style={styles.textarea}
-          placeholder="Write a message"
-          placeholderTextColor="#666"
+          style={styles.textArea}
           multiline
-          numberOfLines={3}
+          placeholder="Write your message"
           value={message}
           onChangeText={setMessage}
         />
 
-        {/* Continue to Summary (check-only) */}
+        {/* Reserve Button */}
         <TouchableOpacity
-          style={[styles.reserveBtn, checking && { opacity: 0.6 }]}
+          activeOpacity={0.9}
+          style={styles.reserveBtn}
           disabled={checking}
-          onPress={() => preflightAndGoToSummary()}
+          onPress={preflightAndGoToSummary}
         >
-          {checking ? (
-            <ActivityIndicator />
-          ) : (
-            <Text style={styles.reserveText}>Continue</Text>
-          )}
+          <LinearGradient
+            colors={["#FFA500", "#FFA500"]}
+            start={[0, 0]}
+            end={[1, 0]}
+            style={styles.reserveGradient}
+          >
+            {checking ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.reserveText}>Continue</Text>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
       </ScrollView>
 
       {/* Calendar Modal */}
-      <Modal visible={showCalendar} animationType="slide">
-        <View style={{ flex: 1, backgroundColor: "#fff" }}>
-          <Calendar
-            onDayPress={(day) => {
-              const ds = day.dateString;
-              if (!blockedDates.includes(ds)) {
-                setSelectedDate(ds);
-                setShowCalendar(false);
-              } else {
-                Alert.alert("Unavailable", "That date is already fully reserved.");
-              }
-            }}
-            markedDates={computedMarked}
-            minDate={new Date().toISOString().slice(0, 10)}
-          />
-          <TouchableOpacity
-            style={{ padding: 15, backgroundColor: "orange" }}
-            onPress={() => setShowCalendar(false)}
-          >
-            <Text style={{ textAlign: "center", color: "#fff" }}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+      <Modal
+        isVisible={showCalendarModal}
+        backdropOpacity={0.4}
+        onBackdropPress={() => setShowCalendarModal(false)}
+      >
+        <View style={styles.modalCard}>
+          {calendarLoading ? (
+            <ActivityIndicator size="large" color="#1E88E5" />
+          ) : (
+            <>
+              <Calendar
+                markingType="custom"
+                markedDates={markedDates}
+                onDayPress={async (day) => {
+                  const date = day.dateString;
+                  const info = calendarMap[date];
+                  if (info?.status === "fully_reserved") {
+                    Alert.alert("Unavailable", "That date is fully reserved.");
+                    return;
+                  }
+                  const data = await fetchAvailability(date);
+                  if (!data) return;
+                  if (selectingType === "borrow") setBorrowDate(date);
+                  else if (borrowDate && date < borrowDate)
+                    return Alert.alert("Invalid", "Return date must be after borrow date.");
+                  else setReturnDate(date);
+                  setMarkedDates((prev) => ({
+                    ...prev,
+                    [date]: {
+                      customStyles: {
+                        container: { backgroundColor: "#1E88E5" },
+                        text: { color: "#fff", fontWeight: "bold" },
+                      },
+                    },
+                  }));
+                }}
+                minDate={new Date().toISOString().slice(0, 10)}
+                theme={{ todayTextColor: "#FFA500", arrowColor: "#1E88E5" }}
+              />
 
-      {/* Conflict / Suggestions Modal */}
-      <Modal visible={conflictModal} transparent animationType="fade">
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: "center",
-            alignItems: "center",
-            padding: 20,
-          }}
-        >
-          <View style={{ backgroundColor: "#fff", borderRadius: 12, padding: 16, width: "100%" }}>
-            <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 8 }}>
-              Item already reserved for that date
-            </Text>
-            {conflictInfo.blocked?.length ? (
-              <Text style={{ marginBottom: 8 }}>
-                Unavailable: {conflictInfo.blocked.join(", ")}
+              <View style={styles.legendRow}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: "#e6ffe6" }]} />
+                  <Text style={styles.legendText}>Available</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: "#ffcccc" }]} />
+                  <Text style={styles.legendText}>Fully Reserved</Text>
+                </View>
+              </View>
+
+              <Text style={styles.modalAvail}>
+                {availableQty === null
+                  ? "Tap a date to check availability"
+                  : `Available: ${availableQty}`}
               </Text>
-            ) : null}
-            <Text style={{ fontWeight: "600", marginBottom: 8 }}>Try these dates:</Text>
-            {conflictInfo.suggestions?.length ? (
-              conflictInfo.suggestions.map((sug, idx) => (
+
+              <TextInput
+                style={styles.modalQtyInput}
+                placeholder="Enter quantity"
+                keyboardType="numeric"
+                value={borrowQty}
+                onChangeText={setBorrowQty}
+              />
+
+              <View style={styles.modalBtnRow}>
                 <TouchableOpacity
-                  key={idx}
-                  style={{
-                    padding: 12,
-                    borderWidth: 1,
-                    borderColor: "#ddd",
-                    borderRadius: 8,
-                    marginBottom: 8,
-                  }}
-                  onPress={() => {
-                    setConflictModal(false);
-                    preflightAndGoToSummary({ reserve_date: sug.date });
-                  }}
+                  style={[styles.modalBtn, { backgroundColor: "#4CAF50" }]}
+                  onPress={handleSaveDate}
                 >
-                  <Text>{sug.date}</Text>
+                  <Text style={styles.modalBtnText}>Save</Text>
                 </TouchableOpacity>
-              ))
-            ) : (
-              <Text style={{ color: "#555", marginBottom: 8 }}>
-                No alternatives found in the next 30 days for this quantity.
-              </Text>
-            )}
-
-            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
-              <TouchableOpacity onPress={() => setConflictModal(false)} style={{ padding: 12 }}>
-                <Text style={{ color: "#555" }}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: "#E53935" }]}
+                  onPress={() => setShowCalendarModal(false)}
+                >
+                  <Text style={styles.modalBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </View>
       </Modal>
-    </View>
+    </LinearGradient>
   );
 }
 
-/* ============ STYLES ============ */
+// ==================== Styles ====================
 const styles = StyleSheet.create({
-  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#97c6d2" },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingTop: 50,
-    paddingBottom: 15,
-    paddingHorizontal: 16,
-    backgroundColor: "#97c6d2",
-  },
-  headerTitle: { color: "#fff", fontSize: 18, fontWeight: "bold", textAlign: "center", flex: 1, right: 15 },
-  scrollContainer: { flex: 1, padding: 16 },
-  imageWrapper: { alignItems: "center", marginBottom: 15 },
-  itemImage: { width: 220, height: 220, borderRadius: 12, backgroundColor: "#fff" },
-  itemName: { fontSize: 20, fontWeight: "bold", color: "#fff", marginBottom: 3 },
-  itemOwner: { color: "#eee", marginBottom: 10 },
-  detailsTitle: { color: "#fff", fontWeight: "bold", marginBottom: 5 },
-  detailsText: { color: "#eee", marginBottom: 15, lineHeight: 20 },
-  availableContainer: {
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#4FC3F7" },
+  header: { flexDirection: "row", alignItems: "center", paddingTop: 50, paddingHorizontal: 16, marginBottom: 10 },
+  headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700", flex: 1, textAlign: "center", right: 15 },
+  scrollContent: { padding: 16, paddingBottom: 60 },
+  imageWrapper: { alignItems: "center", marginBottom: 10 },
+  itemImage: { width: 220, height: 220, borderRadius: 18, backgroundColor: "#fff", elevation: 6 },
+  itemName: { color: "#fff", fontSize: 22, fontWeight: "bold", marginTop: 8, textAlign: "center" },
+  itemOwner: { color: "#E0F7FA", textAlign: "center", marginBottom: 4 },
+  itemDesc: { color: "#E0F7FA", marginBottom: 14, textAlign: "center" },
+  dateRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
+  dateBox: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#fff",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    justifyContent: "space-between",
-    marginBottom: 15,
+    borderRadius: 12,
+    padding: 10,
+    flex: 0.48,
+    justifyContent: "center",
+    elevation: 3,
   },
-  availableText: { color: "#000", fontWeight: "600" },
-  qtyInput: {
-    backgroundColor: "#f1f1f1",
-    borderRadius: 6,
+  backButton: {
+    backgroundColor: "rgba(255,255,255,0.25)",
     padding: 8,
-    width: 100,
-    textAlign: "center",
-    color: "#000",
-  },
-  label: { fontSize: 14, fontWeight: "600", color: "#fff", marginBottom: 6 },
-  calendarBtn: {
-    backgroundColor: "#555",
-    padding: 12,
     borderRadius: 8,
-    marginBottom: 15,
-    alignItems: "center",
   },
-  uploadBtn: { backgroundColor: "#555", padding: 12, borderRadius: 8, marginBottom: 10 },
-  uploadText: { color: "#fff", textAlign: "center" },
-  previewImage: { width: "100%", height: 180, borderRadius: 10, marginBottom: 15 },
-  textarea: { backgroundColor: "#fff", borderRadius: 8, padding: 10, minHeight: 80, marginBottom: 15 },
-  reserveBtn: { backgroundColor: "#FFA500", padding: 15, borderRadius: 8, marginTop: 10, marginBottom: 30 },
-  reserveText: { color: "#fff", fontWeight: "bold", textAlign: "center", fontSize: 16 },
-  pillRow: { flexDirection: "row", gap: 8, marginBottom: 10, flexWrap: "wrap" },
-  pill: { borderWidth: 1, borderColor: "#ddd", backgroundColor: "#fff", borderRadius: 999, paddingVertical: 8, paddingHorizontal: 12 },
-  pillSelected: { borderColor: "#FFA500", backgroundColor: "#FFE9CC" },
-  pillText: { color: "#333", fontWeight: "600", fontSize: 12 },
-  pillTextSelected: { color: "#D46B08" },
-  helperText: { color: "#eee", fontSize: 12, marginBottom: 10 },
+  dateText: { color: "#333", fontWeight: "600", marginLeft: 6 },
+  availableText: { color: "#fff", textAlign: "center", marginVertical: 6 },
+  qtyDisplay: {
+    backgroundColor: "#FFD55A",
+    borderRadius: 10,
+    padding: 12,
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  qtyText: { color: "#333", fontWeight: "700" },
+  uploadBtn: {
+    backgroundColor: "#1976D2",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+    alignItems: "center",
+    elevation: 3,
+  },
+  uploadText: { color: "#fff", fontWeight: "600" },
+  preview: { width: "100%", height: 180, borderRadius: 12, marginBottom: 10 },
+  label: { color: "#fff", fontWeight: "600", marginBottom: 6 },
+  priorityRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
+  pill: { borderWidth: 1, borderColor: "#ddd", backgroundColor: "#fff", borderRadius: 999, paddingVertical: 6, paddingHorizontal: 10 },
+  pillSelected: { borderColor: "#FFC107", backgroundColor: "#FFF8E1" },
+  pillText: { color: "#333", fontSize: 12, fontWeight: "600" },
+  pillTextSelected: { color: "#E65100" },
+  textArea: { backgroundColor: "#fff", borderRadius: 10, minHeight: 80, padding: 10, marginBottom: 15 },
+  reserveBtn: { borderRadius: 10, overflow: "hidden", elevation: 5, marginBottom: 20 },
+  reserveGradient: { paddingVertical: 16, alignItems: "center" },
+  reserveText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  modalCard: { backgroundColor: "#fff", borderRadius: 20, padding: 16 },
+  modalAvail: { textAlign: "center", fontWeight: "600", marginVertical: 8 },
+  modalQtyInput: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    padding: 10,
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  modalBtnRow: { flexDirection: "row", justifyContent: "space-between" },
+  modalBtn: { flex: 0.48, borderRadius: 10, padding: 12 },
+  modalBtnText: { color: "#fff", textAlign: "center", fontWeight: "600" },
+  legendRow: { flexDirection: "row", justifyContent: "center", gap: 15, marginTop: 5 },
+  legendItem: { flexDirection: "row", alignItems: "center" },
+  legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 5 },
+  legendText: { fontSize: 13, color: "#333" },
 });
