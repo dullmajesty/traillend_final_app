@@ -25,7 +25,8 @@ export default function ReservationStatus() {
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  const filters = ["Pending", "Upcoming", "Past", "Cancelled"];
+  // ✅ Added "In Use" filter
+  const filters = ["Pending", "Upcoming", "In Use", "Past", "Cancelled"];
 
   useEffect(() => {
     fetchReservations();
@@ -41,7 +42,7 @@ export default function ReservationStatus() {
         return;
       }
 
-      const res = await fetch("http://192.168.1.8:8000/api/user_reservations/", {
+      const res = await fetch("http://10.178.38.115:8000/api/user_reservations/", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -64,7 +65,7 @@ export default function ReservationStatus() {
           try {
             const token = await AsyncStorage.getItem("accessToken");
             const res = await fetch(
-              `http://192.168.1.8:8000/api/reservations/${id}/cancel/`,
+              `http://10.178.38.115:8000/api/reservations/${id}/cancel/`,
               {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
@@ -87,12 +88,15 @@ export default function ReservationStatus() {
     ]);
   };
 
+  // ✅ Added new color for "in use"
   const getStatusColor = (status) => {
     switch (status) {
       case "pending":
         return "#FFC107";
       case "approved":
         return "#4CAF50";
+      case "in use":
+        return "#2196F3"; // blue tone for active usage
       case "rejected":
         return "#E53935";
       case "cancelled":
@@ -104,9 +108,11 @@ export default function ReservationStatus() {
     }
   };
 
+  // ✅ Added filter for "In Use"
   const filteredReservations = reservations.filter((r) => {
     if (selectedFilter === "Pending") return r.status === "pending";
     if (selectedFilter === "Upcoming") return r.status === "approved";
+    if (selectedFilter === "In Use") return r.status === "in use";
     if (selectedFilter === "Past") return r.status === "returned";
     if (selectedFilter === "Cancelled")
       return r.status === "cancelled" || r.status === "rejected";
@@ -134,7 +140,12 @@ export default function ReservationStatus() {
         <Text style={styles.itemName}>{item.item_name}</Text>
         <Text style={styles.detail}>Borrowed: {item.date_borrowed || "—"}</Text>
         <Text style={styles.detail}>Return: {item.date_return || "—"}</Text>
-        <View style={[styles.statusPill, { backgroundColor: getStatusColor(item.status) + "33" }]}>
+        <View
+          style={[
+            styles.statusPill,
+            { backgroundColor: getStatusColor(item.status) + "33" },
+          ]}
+        >
           <Text style={[styles.status, { color: getStatusColor(item.status) }]}>
             {item.status.toUpperCase()}
           </Text>
@@ -146,7 +157,6 @@ export default function ReservationStatus() {
 
   return (
     <LinearGradient colors={["#4FC3F7", "#1E88E5"]} style={styles.container}>
-
       {/* Filter Buttons */}
       <View style={styles.filterWrapper}>
         {filters.map((filter) => (
@@ -227,7 +237,11 @@ export default function ReservationStatus() {
                   </Text>
                   <Text style={styles.modalDetail}>
                     <Text style={styles.bold}>Status:</Text>{" "}
-                    <Text style={{ color: getStatusColor(selectedReservation.status) }}>
+                    <Text
+                      style={{
+                        color: getStatusColor(selectedReservation.status),
+                      }}
+                    >
                       {selectedReservation.status.toUpperCase()}
                     </Text>
                   </Text>

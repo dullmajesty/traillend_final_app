@@ -14,12 +14,14 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { getAuth } from "../../lib/authStorage"; // ✅ use your helper
 
 export default function DamageReport() {
   const [image, setImage] = useState(null);
   const [location, setLocation] = useState("");
   const [quantityAffected, setQuantityAffected] = useState("");
   const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -27,13 +29,10 @@ export default function DamageReport() {
       allowsEditing: true,
       quality: 1,
     });
-
-    if (!result.canceled) {
-      setImage(result.assets[0].uri);
-    }
+    if (!result.canceled) setImage(result.assets[0].uri);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!location || !quantityAffected || !description || !image) {
       Alert.alert("Error", "Please fill out all fields.");
       return;
@@ -44,11 +43,58 @@ export default function DamageReport() {
       return;
     }
 
-    Alert.alert("Success", "Damage report submitted successfully!");
-    setImage(null);
-    setLocation("");
-    setQuantityAffected("");
-    setDescription("");
+    setLoading(true);
+
+    try {
+      // ✅ Get access token from AsyncStorage
+      const auth = await getAuth();
+      const token = auth?.accessToken;
+
+      if (!token) {
+        Alert.alert("Not logged in", "Please log in again.");
+        setLoading(false);
+        return;
+      }
+
+      // ✅ Use your direct Django API URL here
+      const apiURL = "http://10.178.38.115:8000/api/damage-report/"; // change IP to match your PC
+
+      const formData = new FormData();
+      formData.append("location", location);
+      formData.append("quantity_affected", quantityAffected);
+      formData.append("description", description);
+      formData.append("image", {
+        uri: image,
+        name: "damage.jpg",
+        type: "image/jpeg",
+      });
+
+      const response = await fetch(apiURL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+      console.log("📩 Server response:", data);
+
+      if (data.status === "success") {
+        Alert.alert("✅ Success", "Damage report submitted successfully!");
+        setImage(null);
+        setLocation("");
+        setQuantityAffected("");
+        setDescription("");
+      } else {
+        Alert.alert("Error", data.message || "Submission failed.");
+      }
+    } catch (error) {
+      console.error("Submission error:", error);
+      Alert.alert("Network Error", "Unable to submit report. Try again later.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -65,14 +111,11 @@ export default function DamageReport() {
             </Text>
           </View>
 
-          {/* Card Form */}
           <View style={styles.card}>
             <Text style={styles.note}>
-              ⚠️ Note: Be detailed — include location, quantity, and description
-              of the issue.
+              ⚠️ Be detailed — include location, quantity, and description of the issue.
             </Text>
 
-            {/* Upload */}
             <Text style={styles.label}>Upload Damage Image</Text>
             <TouchableOpacity style={styles.uploadButton} onPress={pickImage}>
               <Ionicons name="cloud-upload-outline" size={18} color="#1976D2" />
@@ -82,7 +125,6 @@ export default function DamageReport() {
             </TouchableOpacity>
             {image && <Image source={{ uri: image }} style={styles.preview} />}
 
-            {/* Location */}
             <Text style={styles.label}>Location</Text>
             <TextInput
               style={styles.input}
@@ -92,7 +134,6 @@ export default function DamageReport() {
               onChangeText={setLocation}
             />
 
-            {/* Quantity */}
             <Text style={styles.label}>Quantity Affected</Text>
             <TextInput
               style={styles.input}
@@ -103,7 +144,6 @@ export default function DamageReport() {
               keyboardType="numeric"
             />
 
-            {/* Description */}
             <Text style={styles.label}>Describe the Damage</Text>
             <TextInput
               style={[styles.input, { height: 90, textAlignVertical: "top" }]}
@@ -114,14 +154,19 @@ export default function DamageReport() {
               multiline
             />
 
-            {/* Submit */}
-            <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={handleSubmit}
+              disabled={loading}
+            >
               <LinearGradient
                 colors={["#64B5F6", "#1976D2"]}
                 style={styles.submitGradient}
               >
                 <Ionicons name="send" size={18} color="#fff" />
-                <Text style={styles.submitText}>Submit Report</Text>
+                <Text style={styles.submitText}>
+                  {loading ? "Submitting..." : "Submit Report"}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -131,20 +176,10 @@ export default function DamageReport() {
   );
 }
 
-// ================== STYLES ==================
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { padding: 20, paddingBottom: 40 },
-  header: {
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#fff",
-    marginTop: 6,
-  },
+  header: { alignItems: "center", marginBottom: 20 },
   subtitle: {
     color: "#e3f2fd",
     fontSize: 14,
@@ -166,12 +201,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     fontWeight: "500",
   },
-  label: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 6,
-  },
+  label: { fontSize: 15, fontWeight: "600", color: "#333", marginBottom: 6 },
   uploadButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -183,10 +213,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#E3F2FD",
     marginBottom: 10,
   },
-  uploadText: {
-    color: "#1976D2",
-    fontWeight: "600",
-  },
+  uploadText: { color: "#1976D2", fontWeight: "600" },
   preview: {
     width: "100%",
     height: 180,
@@ -203,11 +230,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#000",
   },
-  submitButton: {
-    marginTop: 5,
-    borderRadius: 12,
-    overflow: "hidden",
-  },
+  submitButton: { marginTop: 5, borderRadius: 12, overflow: "hidden" },
   submitGradient: {
     flexDirection: "row",
     justifyContent: "center",
@@ -215,9 +238,5 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 8,
   },
-  submitText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+  submitText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
 });

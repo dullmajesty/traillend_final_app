@@ -73,51 +73,74 @@ function Notifications() {
     }
   };
 
-  const renderNotification = ({ item }) => (
-    <TouchableOpacity
-      onPress={() => {
-        markAsRead(item.id);
-        if (item.qr_code) openQRModal(item.qr_code);
-      }}
-      style={[styles.card, item.is_read ? styles.read : styles.unread]}
-      activeOpacity={0.9}
-    >
-      <View style={styles.cardHeader}>
-        <View style={styles.titleRow}>
-          <Ionicons
-            name={
-              item.type === "approval"
-                ? "checkmark-circle-outline"
-                : item.type === "cancelled"
-                ? "close-circle-outline"
-                : item.type === "received"
-                ? "cube-outline"
-                : item.type === "returned"
-                ? "repeat-outline"
-                : "notifications-outline"
-            }
-            size={20}
-            color={
-              item.type === "approval"
-                ? "#4CAF50"
-                : item.type === "cancelled"
-                ? "#E57373"
-                : item.type === "received"
-                ? "#2196F3"
-                : item.type === "returned"
-                ? "#9C27B0"
-                : "#4A90E2"
-            }
-            style={{ marginRight: 8 }}
-          />
-          <Text style={styles.cardTitle}>{item.title}</Text>
+  // ✅ Expanded notification types and icons
+  const renderNotification = ({ item }) => {
+    let iconName = "notifications-outline";
+    let iconColor = "#4A90E2";
+
+    switch (item.type) {
+      case "approval":
+        iconName = "checkmark-circle-outline";
+        iconColor = "#4CAF50";
+        break;
+      case "cancelled":
+        iconName = "close-circle-outline";
+        iconColor = "#E57373";
+        break;
+      case "received":
+        iconName = "cube-outline";
+        iconColor = "#2196F3";
+        break;
+      case "returned":
+        iconName = "repeat-outline";
+        iconColor = "#9C27B0";
+        break;
+      case "claimed": // ✅ added for Scan to Claim
+        iconName = "hand-left-outline";
+        iconColor = "#42A5F5";
+        break;
+      case "reminder": // ✅ reminder before return due date
+        iconName = "time-outline";
+        iconColor = "#FFB300";
+        break;
+      case "late": // ✅ late return notice
+        iconName = "alert-circle-outline";
+        iconColor = "#E53935";
+        break;
+      case "good_borrower": // ✅ good borrower badge
+        iconName = "happy-outline";
+        iconColor = "#4CAF50";
+        break;
+      case "bad_borrower": // ✅ bad borrower notice
+        iconName = "sad-outline";
+        iconColor = "#D32F2F";
+        break;
+      default:
+        iconName = "notifications-outline";
+        iconColor = "#4A90E2";
+    }
+
+    return (
+      <TouchableOpacity
+        onPress={() => {
+          markAsRead(item.id);
+          if (item.qr_code) openQRModal(item.qr_code);
+        }}
+        style={[styles.card, item.is_read ? styles.read : styles.unread]}
+        activeOpacity={0.9}
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.titleRow}>
+            <Ionicons name={iconName} size={20} color={iconColor} style={{ marginRight: 8 }} />
+            <Text style={styles.cardTitle}>{item.title}</Text>
+          </View>
+          {item.qr_code && <Ionicons name="qr-code-outline" size={20} color="#1E88E5" />}
         </View>
-        {item.qr_code && <Ionicons name="qr-code-outline" size={20} color="#1E88E5" />}
-      </View>
-      <Text style={styles.cardMessage}>{item.message}</Text>
-      <Text style={styles.date}>{item.created_at}</Text>
-    </TouchableOpacity>
-  );
+        <Text style={styles.cardMessage}>{item.message}</Text>
+        <Text style={styles.date}>{item.created_at}</Text>
+      </TouchableOpacity>
+    );
+  };
 
   const renderGroup = (title, data, showMarkAll = false) =>
     data.length > 0 && (

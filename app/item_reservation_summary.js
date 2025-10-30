@@ -76,7 +76,7 @@ export default function ReservationSummary() {
         });
       }
 
-      const res = await fetch("http://192.168.1.8:8000/api/create_reservation/", {
+      const res = await fetch("http://10.178.38.115:8000/api/create_reservation/", {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}` },
         body: form,

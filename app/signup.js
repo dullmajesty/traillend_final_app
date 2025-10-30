@@ -35,7 +35,7 @@ export default function SignUp() {
 
     try {
       const res = await axios.post(
-        "http://192.168.1.8:8000/api/register/",
+        "http://10.178.38.115:8000/api/register/",
         { name, username, contactNumber, address, password, confirmPassword },
         { headers: { "Content-Type": "application/json" } }
       );

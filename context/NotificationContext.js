@@ -7,7 +7,7 @@ export const NotificationContext = createContext();
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [accessToken, setAccessToken] = useState(null);
-  const API_URL = 'http://192.168.1.8:8000'; // 🔧 Change for deployment
+  const API_URL = 'http://10.178.38.115:8000'; // 🔧 Change for deployment
 
   // ✅ Load JWT token from storage
   useEffect(() => {
