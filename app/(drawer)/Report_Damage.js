@@ -14,7 +14,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { getAuth } from "../../lib/authStorage"; // ✅ use your helper
+import { getAuth } from "../../lib/authStorage"; //  use your helper
 
 export default function DamageReport() {
   const [image, setImage] = useState(null);
@@ -46,7 +46,7 @@ export default function DamageReport() {
     setLoading(true);
 
     try {
-      // ✅ Get access token from AsyncStorage
+      //  Get access token from AsyncStorage
       const auth = await getAuth();
       const token = auth?.accessToken;
 
@@ -56,8 +56,8 @@ export default function DamageReport() {
         return;
       }
 
-      // ✅ Use your direct Django API URL here
-      const apiURL = "http://10.178.38.115:8000/api/damage-report/"; // change IP to match your PC
+      //  Use your direct Django API URL here
+      const apiURL = "http://192.168.1.8:8000/api/damage-report/"; // change IP to match your PC
 
       const formData = new FormData();
       formData.append("location", location);
@@ -78,10 +78,10 @@ export default function DamageReport() {
       });
 
       const data = await response.json();
-      console.log("📩 Server response:", data);
+      console.log("Server response:", data);
 
       if (data.status === "success") {
-        Alert.alert("✅ Success", "Damage report submitted successfully!");
+        Alert.alert("Success", "Damage report submitted successfully!");
         setImage(null);
         setLocation("");
         setQuantityAffected("");

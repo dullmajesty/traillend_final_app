@@ -19,7 +19,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { setAuth } from "../lib/authStorage";
 import { LinearGradient } from "expo-linear-gradient";
 
-const BASE_URL = "http://10.178.38.115:8000";
+const BASE_URL = "http://192.168.1.8:8000";
 
 export default function Login() {
   const router = useRouter();
@@ -70,6 +70,9 @@ export default function Login() {
       }
 
       await setAuth({ access, refresh, username });
+
+      await AsyncStorage.setItem("access_token", access);
+      await AsyncStorage.setItem("refresh_token", refresh);
 
       // Handle Remember Me
       if (rememberMe) {

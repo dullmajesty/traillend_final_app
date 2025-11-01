@@ -5,14 +5,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { View, Image, StyleSheet, TouchableOpacity, Text, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { NotificationContext, NotificationProvider } from "../../context/NotificationContext";
-import { clearAuth } from "../../lib/authStorage"; // ✅ make sure you have this helper
+import { clearAuth } from "../../lib/authStorage"; //  make sure you have this helper
 
 function AppDrawer() {
   const router = useRouter();
   const { notifications } = useContext(NotificationContext);
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
-  // ✅ Logout function
+
+  // Logout function
   const handleLogout = async () => {
     Alert.alert("Confirm Logout", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
@@ -48,7 +49,7 @@ function AppDrawer() {
           {/* Default Drawer Items */}
           <DrawerItemList {...props} />
 
-          {/* ✅ Custom Logout Button */}
+          {/*  Custom Logout Button */}
           <DrawerItem
             label="Log Out"
             onPress={handleLogout}

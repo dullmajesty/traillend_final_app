@@ -25,7 +25,7 @@ export default function ReservationStatus() {
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  // ✅ Added "In Use" filter
+  // Added "In Use" filter
   const filters = ["Pending", "Upcoming", "In Use", "Past", "Cancelled"];
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function ReservationStatus() {
         return;
       }
 
-      const res = await fetch("http://10.178.38.115:8000/api/user_reservations/", {
+      const res = await fetch("http://192.168.1.8:8000/api/user_reservations/", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -65,7 +65,7 @@ export default function ReservationStatus() {
           try {
             const token = await AsyncStorage.getItem("accessToken");
             const res = await fetch(
-              `http://10.178.38.115:8000/api/reservations/${id}/cancel/`,
+              `http://192.168.1.8:8000/api/reservations/${id}/cancel/`,
               {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
@@ -88,7 +88,7 @@ export default function ReservationStatus() {
     ]);
   };
 
-  // ✅ Added new color for "in use"
+  //  Added new color for "in use"
   const getStatusColor = (status) => {
     switch (status) {
       case "pending":
@@ -108,7 +108,7 @@ export default function ReservationStatus() {
     }
   };
 
-  // ✅ Added filter for "In Use"
+  //  Added filter for "In Use"
   const filteredReservations = reservations.filter((r) => {
     if (selectedFilter === "Pending") return r.status === "pending";
     if (selectedFilter === "Upcoming") return r.status === "approved";

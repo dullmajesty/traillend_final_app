@@ -14,8 +14,9 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { LinearGradient } from "expo-linear-gradient"; // ✅ Added
+import { LinearGradient } from "expo-linear-gradient"; //  Added
 import useRefresh from "../../component/useRefresh";
+import { authFetch } from "../../lib/authFetch";
 
 const numColumns = 2;
 const CARD_WIDTH = Dimensions.get("window").width / numColumns - 30;
@@ -26,37 +27,43 @@ export default function AdminDashboard() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Fetch inventory list
-  const fetchItems = async () => {
-    try {
-      const response = await fetch("http://10.178.38.115:8000/api/inventory_list/");
-      const data = await response.json();
-      console.log("✅ Fetched items:", data);
-      setItems(data);
-    } catch (error) {
-      console.error("❌ Error fetching items:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  
 
-  // ✅ Hook for pull-to-refresh
+const fetchItems = async () => {
+  try {
+    const response = await authFetch("/api/inventory_list/");
+    if (!response.ok) throw new Error("Failed to fetch items");
+
+    const data = await response.json();
+    setItems(data);
+  } catch (error) {
+    console.error("Error fetching items:", error);
+    if (error.message === "Session expired") {
+      alert("Your session has expired. Please log in again.");
+      router.replace("/login"); // navigate to login screen
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+  // Hook for pull-to-refresh
   const { refreshing, onRefresh } = useRefresh(fetchItems);
 
-  // ✅ Auto-refresh when screen gains focus
+  // Auto-refresh when screen gains focus
   useFocusEffect(
     useCallback(() => {
-      console.log("🔄 Screen focused — refreshing items");
       fetchItems();
     }, [])
   );
 
-  // ✅ Filter items by search
+  // Filter items by search
   const filteredItems = items.filter((item) =>
     item.name?.toLowerCase().includes(search.toLowerCase())
   );
 
-  // ✅ Render each card
+  //  Render each card
   const renderItem = ({ item }) => (
     <TouchableOpacity
       style={styles.card}
@@ -77,12 +84,12 @@ export default function AdminDashboard() {
 
   return (
     <LinearGradient
-      colors={["#4FC3F7", "#1E88E5"]} // 💙 gradient colors
+      colors={["#4FC3F7", "#1E88E5"]} // gradient colors
       start={[0, 0]}
       end={[0, 1]}
       style={styles.container}
     >
-      {/* 🔍 Search Bar */}
+      {/*  Search Bar */}
       <View style={styles.searchContainer}>
         <Ionicons
           name="search-outline"
@@ -99,10 +106,10 @@ export default function AdminDashboard() {
         />
       </View>
 
-      {/* 🧾 Title */}
+      {/* Title */}
       <Text style={styles.listTitle}>List Of Items</Text>
 
-      {/* 🌀 Loading / Empty / List */}
+      {/*  Loading / Empty / List */}
       {loading ? (
         <ActivityIndicator size="large" color="#fff" />
       ) : filteredItems.length === 0 ? (
@@ -126,7 +133,7 @@ export default function AdminDashboard() {
   );
 }
 
-// 💅 Styles
+//  Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,

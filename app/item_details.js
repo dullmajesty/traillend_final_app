@@ -47,7 +47,7 @@ export default function ItemDetails() {
   useEffect(() => {
     const fetchItem = async () => {
       try {
-        const res = await fetch("http://10.178.38.115:8000/api/inventory_list/");
+        const res = await fetch("http://192.168.1.8:8000/api/inventory_list/");
         const data = await res.json();
         const found = data.find((i) => i.item_id === parseInt(id));
         setItem(found);
@@ -60,41 +60,59 @@ export default function ItemDetails() {
     fetchItem();
   }, [id]);
 
-  const fetchAvailabilityMap = async () => {
-    try {
-      setCalendarLoading(true);
-      const res = await fetch(`http://10.178.38.115:8000/api/items/${id}/availability-map/`);
-      const json = await res.json();
-      const map = json.calendar || {};
-      setCalendarMap(map);
+ const fetchAvailabilityMap = async () => {
+  try {
+    setCalendarLoading(true);
 
-      const marks = {};
-      Object.entries(map).forEach(([date, info]) => {
-        if (info.status === "fully_reserved") {
-          marks[date] = {
-            disabled: true,
-            disableTouchEvent: true,
-            customStyles: {
-              container: { backgroundColor: "#ffcccc" },
-              text: { color: "#a00", fontWeight: "bold" },
-            },
-          };
-        } else {
-          marks[date] = {
-            customStyles: {
-              container: { backgroundColor: "#e6ffe6" },
-              text: { color: "#008000", fontWeight: "600" },
-            },
-          };
-        }
-      });
-      setMarkedDates(marks);
-    } catch (e) {
-      console.warn("Failed to fetch map:", e);
-    } finally {
-      setCalendarLoading(false);
+    //  Fetch the 60-day map directly from backend
+    const res = await fetch(`http://192.168.1.8:8000/api/items/${id}/availability-map/`);
+    const json = await res.json();
+
+    const map = json.calendar || {};
+    setCalendarMap(map);
+
+    const marks = {};
+    Object.entries(map).forEach(([date, info]) => {
+    if (info.status === "blocked") {
+      // Gray for admin-blocked dates
+      marks[date] = {
+        disabled: true,
+        disableTouchEvent: true,
+        customStyles: {
+          container: { backgroundColor: "#d3d3d3" },
+          text: { color: "#555", fontWeight: "bold" },
+        },
+      };
+    } else if (info.status === "fully_reserved") {
+      // Red for fully reserved
+      marks[date] = {
+        disabled: true,
+        disableTouchEvent: true,
+        customStyles: {
+          container: { backgroundColor: "#ffcccc" },
+          text: { color: "#a00", fontWeight: "bold" },
+        },
+      };
+    } else {
+      // Green for available
+      marks[date] = {
+        customStyles: {
+          container: { backgroundColor: "#e6ffe6" },
+          text: { color: "#008000", fontWeight: "600" },
+        },
+      };
     }
-  };
+  });
+
+    setMarkedDates(marks);
+  } catch (e) {
+    console.warn("Failed to fetch map:", e);
+  } finally {
+    setCalendarLoading(false);
+  }
+};
+
+
 
   useEffect(() => {
     if (showCalendarModal) fetchAvailabilityMap();
@@ -103,7 +121,7 @@ export default function ItemDetails() {
   const fetchAvailability = async (date) => {
     try {
       const res = await fetch(
-        `http://10.178.38.115:8000/api/items/${id}/availability/?date=${date}`
+        `http://192.168.1.8:8000/api/items/${id}/availability/?date=${date}`
       );
       if (!res.ok) return null;
       const data = await res.json();
@@ -166,7 +184,7 @@ export default function ItemDetails() {
 
     setChecking(true);
     try {
-      const res = await fetch("http://10.178.38.115:8000/api/reservations/check/", {
+      const res = await fetch("http://192.168.1.8:8000/api/reservations/check/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -344,28 +362,66 @@ export default function ItemDetails() {
                 markingType="custom"
                 markedDates={markedDates}
                 onDayPress={async (day) => {
-                  const date = day.dateString;
-                  const info = calendarMap[date];
-                  if (info?.status === "fully_reserved") {
-                    Alert.alert("Unavailable", "That date is fully reserved.");
-                    return;
-                  }
+                const date = day.dateString;
+                const info = calendarMap[date];
+
+                // Block fully reserved dates
+                if (info?.status === "fully_reserved") {
+                  Alert.alert("Unavailable", "That date is fully reserved.");
+                  return;
+                }
+
+                // Update available qty
+                if (info && info.available_qty !== undefined) {
+                  setAvailableQty(info.available_qty);
+                } else {
                   const data = await fetchAvailability(date);
                   if (!data) return;
-                  if (selectingType === "borrow") setBorrowDate(date);
-                  else if (borrowDate && date < borrowDate)
-                    return Alert.alert("Invalid", "Return date must be after borrow date.");
-                  else setReturnDate(date);
-                  setMarkedDates((prev) => ({
-                    ...prev,
-                    [date]: {
+                  setAvailableQty(data.available_qty || 0);
+                }
+
+                // Set borrow or return date
+                if (selectingType === "borrow") setBorrowDate(date);
+                else if (borrowDate && date < borrowDate)
+                  return Alert.alert("Invalid", "Return date must be after borrow date.");
+                else setReturnDate(date);
+
+                // Reset all previous blue highlights, keep default map colors
+                const newMarks = { ...markedDates };
+
+                // remove all previous blue dates (user selections)
+                Object.keys(newMarks).forEach((key) => {
+                  const info = calendarMap[key];
+                  if (info?.status === "fully_reserved") {
+                    newMarks[key] = {
+                      disabled: true,
+                      disableTouchEvent: true,
                       customStyles: {
-                        container: { backgroundColor: "#1E88E5" },
-                        text: { color: "#fff", fontWeight: "bold" },
+                        container: { backgroundColor: "#ffcccc" },
+                        text: { color: "#a00", fontWeight: "bold" },
                       },
-                    },
-                  }));
-                }}
+                    };
+                  } else {
+                    newMarks[key] = {
+                      customStyles: {
+                        container: { backgroundColor: "#e6ffe6" },
+                        text: { color: "#008000", fontWeight: "600" },
+                      },
+                    };
+                  }
+                });
+
+                // mark only the newly selected date as blue
+                newMarks[date] = {
+                  customStyles: {
+                    container: { backgroundColor: "#1E88E5" },
+                    text: { color: "#fff", fontWeight: "bold" },
+                  },
+                };
+
+                setMarkedDates(newMarks);
+              }}
+
                 minDate={new Date().toISOString().slice(0, 10)}
                 theme={{ todayTextColor: "#FFA500", arrowColor: "#1E88E5" }}
               />
@@ -379,6 +435,11 @@ export default function ItemDetails() {
                   <View style={[styles.legendDot, { backgroundColor: "#ffcccc" }]} />
                   <Text style={styles.legendText}>Fully Reserved</Text>
                 </View>
+                <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: "#d3d3d3" }]} />
+                  <Text style={styles.legendText}>Blocked (Admin)</Text>
+                </View>
+
               </View>
 
               <Text style={styles.modalAvail}>
