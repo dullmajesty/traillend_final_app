@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import { NotificationContext, NotificationProvider } from "../../context/NotificationContext";
 import { clearAuth } from "../../lib/authStorage"; //  make sure you have this helper
 
+
 function AppDrawer() {
   const router = useRouter();
   const { notifications } = useContext(NotificationContext);
@@ -106,7 +107,9 @@ export default function DrawerLayout() {
   return (
     <NotificationProvider>
       <AppDrawer />
+      
     </NotificationProvider>
+    
   );
 }
 

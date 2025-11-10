@@ -12,12 +12,15 @@ import {
   RefreshControl,
   ScrollView,
 } from "react-native";
+import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NotificationProvider, NotificationContext } from "../context/NotificationContext";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as MediaLibrary from "expo-media-library";
 import * as FileSystem from "expo-file-system";
 import { LinearGradient } from "expo-linear-gradient";
+
 
 function Notifications() {
   const router = useRouter();
@@ -33,17 +36,36 @@ function Notifications() {
     setRefreshing(false);
   };
 
-  const handleMarkAllRead = () => {
+  const handleMarkAllRead = async () => {
+  try {
+    const token = await AsyncStorage.getItem("access_token");
+    if (!token) return;
+
+    
     const updated = notifications.map((n) => ({ ...n, is_read: true }));
     setNotifications(updated);
-    Alert.alert("All notifications marked as read");
-  };
+
+    
+    await axios.patch(
+      "http://192.168.1.8:8000/api/notifications/mark_all_read/",
+      {},
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+  
+    await fetchNotifications();
+  } catch (err) {
+    console.log("Mark all read error:", err.response?.data || err.message);
+  }
+};
 
   const groupNotifications = () => {
+    
+
     const today = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
     const groups = { Today: [], Yesterday: [], Earlier: [] };
-    notifications.forEach((n) => {
+    notifications.forEach ((n) => {
       const notifDate = new Date(n.created_at).toDateString();
       if (notifDate === today) groups.Today.push(n);
       else if (notifDate === yesterday) groups.Yesterday.push(n);
@@ -73,7 +95,37 @@ function Notifications() {
     }
   };
 
-  // 🔹 Notification Card UI
+   const handleDelete = async (id) => {
+  Alert.alert("Delete Notification", "Are you sure you want to delete this notification?", [
+    { text: "Cancel", style: "cancel" },
+    {
+      text: "Delete",
+      style: "destructive",
+      onPress: async () => {
+        try {
+          
+          const token = await AsyncStorage.getItem("access_token");
+
+          await axios.delete(`http://192.168.1.8:8000/api/notifications/delete/${id}/`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+        
+          const updated = notifications.filter((n) => n.id !== id);
+          setNotifications(updated);
+
+          Alert.alert("Deleted", "Notification deleted successfully");
+        } catch (err) {
+          console.log("Delete error:", err.response?.data || err.message);
+         Alert.alert("Error", `Failed to delete notification: ${err.response?.data?.message || err.message}`);
+        }
+      },
+    },
+  ]);
+};
+
+
+  //  Notification Card UI
   const renderNotification = ({ item }) => {
     let iconName = "notifications-outline";
     let iconColor = "#4A90E2";
@@ -101,6 +153,13 @@ function Notifications() {
       case "rejection":
         iconName = "alert-circle-outline";
         iconColor = "#E53935";
+      case "delayed":
+        iconName = "alert-outline";
+        iconColor = "#FF7043";
+        break;
+      case "return_reminder":
+        iconName = "alert-circle-outline";
+        iconColor = "#FF9800";
         break;
     }
 
@@ -114,8 +173,17 @@ function Notifications() {
             <Ionicons name={iconName} size={20} color={iconColor} style={{ marginRight: 8 }} />
             <Text style={styles.cardTitle}>{item.title}</Text>
           </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+
+          </View>
           {item.qr_code && <Ionicons name="qr-code-outline" size={20} color="#1E88E5" />}
-        </View>
+          
+
+          {/* 🔹 Delete icon (always visible) */}
+          <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteButton}>
+            <Ionicons name="trash-outline" size={20} color="#E53935" />
+          </TouchableOpacity></View>
+
         <Text style={styles.cardMessage}>{item.message}</Text>
         <Text style={styles.date}>{item.created_at}</Text>
       </TouchableOpacity>
@@ -149,10 +217,17 @@ function Notifications() {
         <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
           <Ionicons name="arrow-back" size={22} color="#fff" />
         </TouchableOpacity>
+
         <Text style={styles.header}>Notifications</Text>
-        <TouchableOpacity onPress={onRefresh} style={styles.iconButton}>
-          <Ionicons name="refresh-outline" size={22} color="#fff" />
-        </TouchableOpacity>
+
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <TouchableOpacity onPress={handleMarkAllRead} style={styles.iconButton}>
+            <Ionicons name="checkmark-done-outline" size={22} color="#FFD54F" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onRefresh} style={styles.iconButton}>
+            <Ionicons name="refresh-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* CONTENT */}
@@ -182,43 +257,57 @@ function Notifications() {
               style={[
                 styles.statusBanner,
                 selectedNotif?.type === "approval"
-                  ? { backgroundColor: "#E8F5E9" }
+                  ? { backgroundColor: "#C8E6C9" } // green success
                   : selectedNotif?.type === "rejection"
-                  ? { backgroundColor: "#FFEBEE" }
+                  ? { backgroundColor: "#FFCDD2" } // red error
                   : selectedNotif?.type === "pending"
-                  ? { backgroundColor: "#FFF8E1" }
+                  ? { backgroundColor: "#FFE082" } // yellow waiting
                   : selectedNotif?.type === "cancelled"
-                  ? { backgroundColor: "#FFEBEE" }
-                  : { backgroundColor: "#E3F2FD" },
+                  ? { backgroundColor: "#FFCDD2" } // red error
+                  : selectedNotif?.type === "delayed"
+                  ? { backgroundColor: "#FFCCBC" } // orange overdue
+                  : selectedNotif?.type === "return_reminder"
+                  ? { backgroundColor: "#FFE0B2" } // amber reminder
+                  : { backgroundColor: "#E3F2FD" }, // default blue
               ]}
             >
               <Ionicons
                 name={
                   selectedNotif?.type === "approval"
-                    ? "checkmark-circle"
-                    : selectedNotif?.type === "rejection"
-                    ? "close-circle"
-                    : selectedNotif?.type === "pending"
-                    ? "time"
-                    : selectedNotif?.type === "claimed"
-                    ? "hand-left"
-                    : selectedNotif?.type === "returned"
-                    ? "repeat"
-                    : selectedNotif?.type === "cancelled"
-                    ? "close-circle"
-                    : "notifications"
+                      ? "checkmark-circle-outline"
+                      : selectedNotif?.type === "rejection"
+                      ? "alert-circle-outline"
+                      : selectedNotif?.type === "pending"
+                      ? "time-outline"
+                      : selectedNotif?.type === "claimed"
+                      ? "hand-left-outline"
+                      : selectedNotif?.type === "returned"
+                      ? "repeat-outline"
+                      : selectedNotif?.type === "cancelled"
+                      ? "close-circle-outline"
+                      : selectedNotif?.type === "delayed"
+                      ? "alert-outline"
+                      : selectedNotif?.type === "return_reminder"
+                      ? "alert-circle-outline"
+                      : "notifications-outline"
                 }
                 size={22}
                 color={
                   selectedNotif?.type === "approval"
-                    ? "#43A047"
+                    ? "#43A047" // green
                     : selectedNotif?.type === "rejection"
-                    ? "#E53935"
+                    ? "#E53935" // red
                     : selectedNotif?.type === "pending"
-                    ? "#FB8C00"
+                    ? "#FB8C00" // orange
                     : selectedNotif?.type === "cancelled"
-                    ? "#E53935"
-                    : "#1E88E5"
+                    ? "#E57373" // soft red
+                    : selectedNotif?.type === "returned"
+                    ? "#8E24AA" // purple
+                    : selectedNotif?.type === "delayed"
+                    ? "#F4511E" // strong orange
+                    : selectedNotif?.type === "return_reminder"
+                    ? "#FB8C00" // amber
+                    : "#1E88E5" // default blue
                 }
                 style={{ marginRight: 6 }}
               />
@@ -235,6 +324,10 @@ function Notifications() {
                   ? "Returned"
                   : selectedNotif?.type === "cancelled"
                   ? "Cancelled"
+                  : selectedNotif?.type === "delayed"
+                  ? "Delayed" // strong orange
+                  : selectedNotif?.type === "return_reminder"
+                  ? "Reminder" 
                   : "Notification"}
               </Text>
             </View>
@@ -428,4 +521,10 @@ const styles = StyleSheet.create({
   itemImage: { width: 120, height: 120, borderRadius: 10, alignSelf: "center", marginVertical: 10 },
   qrImage: { width: 200, height: 200, alignSelf: "center", marginVertical: 10 },
   saveText: { color: "#1E88E5", textAlign: "center", marginTop: 6, fontWeight: "600" },
+
+  deleteButton: {
+    padding: 4,
+    borderRadius: 6,
+  },
+
 });

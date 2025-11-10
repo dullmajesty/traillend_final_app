@@ -1,7 +1,8 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+
 
 export default function ReservationReceipt() {
   const { start_date, end_date, transactionId, item, quantity } = useLocalSearchParams();
@@ -9,7 +10,7 @@ export default function ReservationReceipt() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* 🔹 Fixed Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={22} color="#fff" />
@@ -17,8 +18,12 @@ export default function ReservationReceipt() {
         <Text style={styles.headerTitle}>Reservation Receipt</Text>
       </View>
 
-      {/* Main Content */}
-      <View style={styles.content}>
+      {/* 🔹 Scrollable Content */}
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Receipt Card */}
         <View style={styles.card}>
           <Ionicons name="receipt-outline" size={42} color="#FFA500" style={{ marginBottom: 8 }} />
@@ -32,7 +37,7 @@ export default function ReservationReceipt() {
             <Text style={styles.value}>{transactionId}</Text>
           </View>
           <View style={styles.row}>
-            <Text style={styles.label}>Item</Text>
+            <Text style={styles.label}>Item Name</Text>
             <Text style={styles.value}>{item}</Text>
           </View>
           <View style={styles.row}>
@@ -47,7 +52,6 @@ export default function ReservationReceipt() {
             <Text style={styles.label}>Return Date</Text>
             <Text style={styles.value}>{end_date}</Text>
           </View>
-
         </View>
 
         {/* Status Info */}
@@ -55,7 +59,8 @@ export default function ReservationReceipt() {
           <Ionicons name="information-circle" size={20} color="#FFA500" style={{ marginRight: 8 }} />
           <Text style={styles.infoText}>
             This reservation is <Text style={{ fontWeight: "bold" }}>pending</Text> and requires admin approval.{"\n\n"}
-            Once approved, a <Text style={{ fontWeight: "bold", color: "#FFA500" }}>QR code</Text> will be sent to your notifications. 
+            Once approved, a <Text style={{ fontWeight: "bold", color: "#FFA500" }}>QR code</Text> will be sent to your notifications.{"\n\n"}
+            When claiming your item, bring a valid ID and the letter you submitted in the system.
             Please present that QR code to claim your item at the barangay office.
           </Text>
         </View>
@@ -70,17 +75,22 @@ export default function ReservationReceipt() {
         </View>
 
         {/* Done Button */}
-        <TouchableOpacity style={styles.doneBtn} onPress={() => router.push("/(drawer)/AdminDashboard")}>
+        <TouchableOpacity
+          style={styles.doneBtn}
+          onPress={() => router.push("/(drawer)/AdminDashboard")}
+        >
           <Ionicons name="checkmark-circle" size={20} color="#fff" />
           <Text style={styles.doneText}>Done</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#4FC3F7" },
+
+  // 🔹 Fixed Header
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -107,11 +117,18 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
   },
-  content: {
-    marginTop: 110,
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+
+  // 🔹 Scrollable content area
+  scrollArea: {
+    flex: 1,
+    backgroundColor: "#4FC3F7",
   },
+  scrollContent: {
+    paddingTop: 110,
+    paddingHorizontal: 20,
+    paddingBottom: 60,
+  },
+
   card: {
     backgroundColor: "#ffffffee",
     borderRadius: 16,
@@ -125,32 +142,16 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 18, fontWeight: "bold", color: "#333", marginBottom: 4 },
   subtitle: { fontSize: 13, color: "#555", textAlign: "center", marginBottom: 8 },
-  divider: {
-    width: "90%",
-    height: 1,
-    backgroundColor: "#ddd",
-    marginVertical: 10,
-  },
+  divider: { width: "90%", height: 1, backgroundColor: "#ddd", marginVertical: 10 },
   row: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-  width: "90%",
-  marginVertical: 4,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "90%",
+    marginVertical: 4,
   },
-  label: {
-    fontSize: 14,
-    color: "#444",
-    fontWeight: "500",
-    flex: 1,
-},
-  value: {
-    fontSize: 14,
-    color: "#000",
-    fontWeight: "600",
-    textAlign: "right",
-    flex: 1,
-},
+  label: { fontSize: 14, color: "#444", fontWeight: "500", flex: 1 },
+  value: { fontSize: 14, color: "#000", fontWeight: "600", textAlign: "right", flex: 1 },
 
   infoBox: {
     flexDirection: "row",
@@ -163,6 +164,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   infoText: { color: "#333", flex: 1, fontSize: 13, lineHeight: 18 },
+
   noteCard: {
     backgroundColor: "#ffffff22",
     borderRadius: 14,
@@ -171,8 +173,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ffffff33",
   },
-  noteTitle: { color: "#fff", fontWeight: "700", marginBottom: 6, fontSize: 14 },
-  noteText: { color: "#f0f0f0", fontSize: 13, marginBottom: 4, lineHeight: 18 },
+  noteTitle: { color: "#060606ff", fontWeight: "700", marginBottom: 6, fontSize: 14 },
+  noteText: { color: "#060606ff", fontSize: 13, marginBottom: 4, lineHeight: 18 },
+
   doneBtn: {
     flexDirection: "row",
     justifyContent: "center",

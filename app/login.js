@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Switch,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -18,6 +17,7 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { setAuth } from "../lib/authStorage";
 import { LinearGradient } from "expo-linear-gradient";
+import Toast from "react-native-toast-message";
 
 const BASE_URL = "http://192.168.1.8:8000";
 
@@ -28,7 +28,7 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Remember me Load saved credentials when component mounts
+  // Load saved login data
   useEffect(() => {
     const loadSavedCredentials = async () => {
       try {
@@ -50,7 +50,11 @@ export default function Login() {
 
   const handleLogin = async () => {
     if (!username || !password) {
-      Alert.alert("Missing fields", "Please enter both username and password.");
+      Toast.show({
+        type: "error",
+        text1: "Missing Fields",
+        text2: "Please enter both username and password.",
+      });
       return;
     }
 
@@ -65,16 +69,19 @@ export default function Login() {
       const { access, refresh } = data;
 
       if (!access || !refresh) {
-        Alert.alert("Error", "Login failed: No tokens received");
+        Toast.show({
+          type: "error",
+          text1: "Login Failed",
+          text2: "No access tokens received.",
+        });
         return;
       }
 
       await setAuth({ access, refresh, username });
-
       await AsyncStorage.setItem("access_token", access);
       await AsyncStorage.setItem("refresh_token", refresh);
 
-      // Handle Remember Me
+      // Remember Me handling
       if (rememberMe) {
         await AsyncStorage.multiSet([
           ["savedUsername", username],
@@ -82,36 +89,74 @@ export default function Login() {
           ["rememberMe", "true"],
         ]);
       } else {
-        await AsyncStorage.multiRemove(["savedUsername", "savedPassword", "rememberMe"]);
+        await AsyncStorage.multiRemove([
+          "savedUsername",
+          "savedPassword",
+          "rememberMe",
+        ]);
       }
 
-
-      //Fetch borrower info
+      // ✅ Fetch borrower info
+      let borrowerStatus = "Good";
       try {
         const borrowerRes = await fetch(`${BASE_URL}/api/me_borrower/`, {
           headers: { Authorization: `Bearer ${access}` },
         });
+
         if (borrowerRes.ok) {
           const borrowerData = await borrowerRes.json();
+          borrowerStatus = borrowerData.borrower_status || "Good";
+
           await AsyncStorage.multiSet([
             ["borrowerUserID", String(borrowerData.user_id || "")],
             ["fullName", borrowerData.full_name || ""],
             ["contactNumber", borrowerData.contact_number || ""],
             ["address", borrowerData.address || ""],
+            ["borrowerStatus", borrowerStatus],
+            ["lateCount", String(borrowerData.late_count || "0")],
           ]);
         }
       } catch (err) {
         console.warn("Error fetching borrower info:", err);
       }
 
-      Alert.alert("Success", "Login successful!");
-      router.replace("/(drawer)/AdminDashboard");
+      // ✅ Success Toast
+      Toast.show({
+        type: "success",
+        text1: "Login Successful 🎉",
+        text2: "Welcome back to TrailLend!",
+      });
+
+      setTimeout(() => {
+        router.replace({
+          pathname: "/(drawer)/AdminDashboard",
+          params: { status: borrowerStatus },
+        });
+      }, 1500);
     } catch (err) {
       console.error("Login error:", err);
-      Alert.alert(
-        "Login failed",
-        err.response?.data?.message || "Invalid username or password"
-      );
+      const message =
+        err.response?.data?.message || "Invalid username or password";
+
+      if (message.toLowerCase().includes("verify")) {
+        Toast.show({
+          type: "info",
+          text1: "Email Verification Required",
+          text2: "Please verify your email before logging in.",
+        });
+      } else if (message.toLowerCase().includes("invalid")) {
+        Toast.show({
+          type: "error",
+          text1: "Invalid Credentials",
+          text2: "Please check your username or password.",
+        });
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "Login Failed",
+          text2: message || "An unexpected error occurred.",
+        });
+      }
     }
   };
 
@@ -122,16 +167,13 @@ export default function Login() {
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scrollContainer}>
-          {/* Logo + Title */}
           <View style={styles.logoContainer}>
-    
             <Text style={styles.title}>TrailLend</Text>
             <Text style={styles.subtitle}>
               Empowering the Community Together 🌿
             </Text>
           </View>
 
-          {/* Card */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Log In to Your Account</Text>
 
@@ -173,7 +215,7 @@ export default function Login() {
                 />
                 <Text style={{ marginLeft: 8, color: "#333" }}>Remember Me</Text>
               </View>
-              <TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push("/forgotpassword")}>
                 <Text style={styles.forgotPassword}>Forgot Password?</Text>
               </TouchableOpacity>
             </View>
@@ -198,10 +240,9 @@ export default function Login() {
             </View>
           </View>
 
-          {/* Community Illustration */}
           <View style={styles.illustrationContainer}>
             <Image
-              source={require("../assets/community.png")} // 👈 optional local image (replace if needed)
+              source={require("../assets/community.png")}
               style={styles.illustration}
               resizeMode="contain"
             />
@@ -216,9 +257,7 @@ export default function Login() {
 }
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
+  gradient: { flex: 1 },
   scrollContainer: {
     flexGrow: 1,
     justifyContent: "center",
@@ -226,15 +265,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     paddingVertical: 40,
   },
-  logoContainer: {
-    alignItems: "center",
-    marginBottom: 30,
-  },
-  title: {
-    fontSize: 42,
-    fontWeight: "bold",
-    color: "#fff",
-  },
+  logoContainer: { alignItems: "center", marginBottom: 30 },
+  title: { fontSize: 42, fontWeight: "bold", color: "#fff" },
   subtitle: {
     fontSize: 14,
     color: "rgba(255,255,255,0.9)",
@@ -247,10 +279,6 @@ const styles = StyleSheet.create({
     width: "100%",
     padding: 20,
     elevation: 5,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
   },
   cardTitle: {
     fontSize: 18,
@@ -269,10 +297,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#333",
   },
-  passwordWrapper: {
-    position: "relative",
-    marginBottom: 15,
-  },
+  passwordWrapper: { position: "relative", marginBottom: 15 },
   inputPassword: {
     width: "100%",
     height: 50,
@@ -312,15 +337,8 @@ const styles = StyleSheet.create({
   },
   signup: { flexDirection: "row", justifyContent: "center" },
   signupText: { color: "#1976D2", fontWeight: "700" },
-  illustrationContainer: {
-    alignItems: "center",
-    marginTop: 30,
-  },
-  illustration: {
-    width: 220,
-    height: 120,
-    opacity: 0.9,
-  },
+  illustrationContainer: { alignItems: "center", marginTop: 30 },
+  illustration: { width: 220, height: 120, opacity: 0.9 },
   communityText: {
     color: "rgba(255,255,255,0.9)",
     fontSize: 13,

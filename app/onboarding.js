@@ -1,5 +1,13 @@
 import React, { useRef, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, Image } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  FlatList,
+  Dimensions,
+  Image,
+} from "react-native";
 import { useRouter } from "expo-router";
 
 const { width, height } = Dimensions.get("window");
@@ -7,24 +15,26 @@ const { width, height } = Dimensions.get("window");
 const slides = [
   {
     key: "1",
-    title: "Borrow Barangay Equipment Hassle-Free",
-    description: "Easily borrow items like sports gear, lab equipment, or event supplies with just a few taps. Track your requests instantly!",
+    title: "Borrow Barangay Equipment Hassle Free",
+    description:
+      "Easily borrow items like sports gear, lab equipment, or event supplies with just a few taps. Track your requests instantly!",
     image: require("../assets/onboard1.png"),
   },
   {
     key: "2",
     title: "Lend and Manage Items Efficiently",
-    description: "Administrators can quickly lend and monitor inventory. Stay updated with real-time item availability and return status.",
+    description:
+      "Administrators can quickly lend and monitor inventory. Stay updated with real-time item availability and return status.",
     image: require("../assets/onboard2.png"),
   },
   {
     key: "3",
     title: "Track Everything with QR Codes",
-    description: "Scan QR codes to borrow or return items. TrailLend ensures a secure, fast, and reliable lending experience for everyone.",
+    description:
+      "Scan QR codes to borrow or return items. TrailLend ensures a secure, fast, and reliable lending experience for everyone.",
     image: require("../assets/onboard3.png"),
   },
 ];
-
 
 export default function App() {
   const router = useRouter();
@@ -39,15 +49,23 @@ export default function App() {
     }
   };
 
-  const onViewableItemsChanged = useRef(({ viewableItems }) => {
-  if (viewableItems.length > 0) {
-    setCurrentIndex(viewableItems[0].index);
-  }
-}).current;
+  const handleSkip = () => {
+    router.push("/login");
+  };
 
+  const onViewableItemsChanged = useRef(({ viewableItems }) => {
+    if (viewableItems.length > 0) {
+      setCurrentIndex(viewableItems[0].index);
+    }
+  }).current;
 
   return (
     <View style={styles.container}>
+      {/* Skip Button */}
+      <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+        <Text style={styles.skipText}>Skip</Text>
+      </TouchableOpacity>
+
       <FlatList
         data={slides}
         horizontal
@@ -76,10 +94,10 @@ export default function App() {
         ))}
       </View>
 
-      {/* Buttons */}
+      {/* Next Button */}
       <TouchableOpacity style={styles.button} onPress={handleNext}>
         <Text style={styles.buttonText}>
-          {currentIndex === slides.length - 1 ? "Continue" : "Next"}
+          {currentIndex === slides.length - 1 ? "Get Started" : "Next"}
         </Text>
       </TouchableOpacity>
     </View>
@@ -87,14 +105,57 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  slide: { width, alignItems: "center", padding: 20, justifyContent: "center" },
+  container: { flex: 1, backgroundColor: "#fff", position: "relative" },
+  skipButton: {
+    position: "absolute",
+    top: 50,
+    right: 20,
+    zIndex: 10,
+  },
+  skipText: {
+    color: "#64B5F6",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  slide: {
+    width,
+    alignItems: "center",
+    padding: 20,
+    justifyContent: "center",
+  },
   image: { width: 250, height: 250, marginBottom: 20 },
-  title: { fontSize: 22, fontWeight: "bold", textAlign: "center", marginBottom: 10, color: "#64B5F6" },
+  title: {
+    fontSize: 22,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 10,
+    color: "#64B5F6",
+  },
   description: { fontSize: 16, textAlign: "center", color: "#333" },
-  dotsContainer: { flexDirection: "row", justifyContent: "center", marginBottom: 20 },
-  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#ccc", marginHorizontal: 5 },
+  dotsContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#ccc",
+    marginHorizontal: 5,
+  },
   activeDot: { backgroundColor: "#64B5F6" },
-  button: { backgroundColor: "#64B5F6", paddingVertical: 12, marginHorizontal: 40, borderRadius: 8, marginBottom: 50 },
-  buttonText: { color: "#fff", textAlign: "center", fontWeight: "bold", fontSize: 16 },
+  button: {
+    backgroundColor: "#64B5F6",
+    paddingVertical: 12,
+    marginHorizontal: 40,
+    borderRadius: 8,
+    marginBottom: 50,
+  },
+  buttonText: {
+    color: "#fff",
+    textAlign: "center",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
 });

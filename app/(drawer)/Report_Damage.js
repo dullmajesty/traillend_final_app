@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Image,
   StyleSheet,
-  Alert,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -14,7 +13,8 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { getAuth } from "../../lib/authStorage"; //  use your helper
+import { getAuth } from "../../lib/authStorage";
+import Toast from "react-native-toast-message"; // ✅ added Toast
 
 export default function DamageReport() {
   const [image, setImage] = useState(null);
@@ -33,31 +33,41 @@ export default function DamageReport() {
   };
 
   const handleSubmit = async () => {
+    // Field validations
     if (!location || !quantityAffected || !description || !image) {
-      Alert.alert("Error", "Please fill out all fields.");
+      Toast.show({
+        type: "error",
+        text1: "Missing Fields",
+        text2: "Please fill out all fields and upload an image.",
+      });
       return;
     }
 
-    if (parseInt(quantityAffected) <= 0) {
-      Alert.alert("Error", "Quantity affected must be at least 1.");
+    if (parseInt(quantityAffected) <= 0 || isNaN(quantityAffected)) {
+      Toast.show({
+        type: "error",
+        text1: "Invalid Quantity",
+        text2: "Quantity must be a number greater than 0.",
+      });
       return;
     }
 
     setLoading(true);
-
     try {
-      //  Get access token from AsyncStorage
       const auth = await getAuth();
       const token = auth?.accessToken;
 
       if (!token) {
-        Alert.alert("Not logged in", "Please log in again.");
+        Toast.show({
+          type: "error",
+          text1: "Session Expired",
+          text2: "Please log in again.",
+        });
         setLoading(false);
         return;
       }
 
-      //  Use your direct Django API URL here
-      const apiURL = "http://192.168.1.8:8000/api/damage-report/"; // change IP to match your PC
+      const apiURL = "http://192.168.1.8:8000/api/damage-report/";
 
       const formData = new FormData();
       formData.append("location", location);
@@ -71,9 +81,7 @@ export default function DamageReport() {
 
       const response = await fetch(apiURL, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 
@@ -81,17 +89,29 @@ export default function DamageReport() {
       console.log("Server response:", data);
 
       if (data.status === "success") {
-        Alert.alert("Success", "Damage report submitted successfully!");
+        Toast.show({
+          type: "success",
+          text1: "Report Submitted",
+          text2: "Damage report has been successfully sent.",
+        });
         setImage(null);
         setLocation("");
         setQuantityAffected("");
         setDescription("");
       } else {
-        Alert.alert("Error", data.message || "Submission failed.");
+        Toast.show({
+          type: "error",
+          text1: "Submission Failed",
+          text2: data.message || "Please try again.",
+        });
       }
     } catch (error) {
       console.error("Submission error:", error);
-      Alert.alert("Network Error", "Unable to submit report. Try again later.");
+      Toast.show({
+        type: "error",
+        text1: "Network Error",
+        text2: "Unable to submit report. Try again later.",
+      });
     } finally {
       setLoading(false);
     }
@@ -116,6 +136,7 @@ export default function DamageReport() {
               ⚠️ Be detailed — include location, quantity, and description of the issue.
             </Text>
 
+            {/* Upload Image */}
             <Text style={styles.label}>Upload Damage Image</Text>
             <TouchableOpacity style={styles.uploadButton} onPress={pickImage}>
               <Ionicons name="cloud-upload-outline" size={18} color="#1976D2" />
@@ -125,6 +146,7 @@ export default function DamageReport() {
             </TouchableOpacity>
             {image && <Image source={{ uri: image }} style={styles.preview} />}
 
+            {/* Location */}
             <Text style={styles.label}>Location</Text>
             <TextInput
               style={styles.input}
@@ -134,6 +156,7 @@ export default function DamageReport() {
               onChangeText={setLocation}
             />
 
+            {/* Quantity */}
             <Text style={styles.label}>Quantity Affected</Text>
             <TextInput
               style={styles.input}
@@ -144,6 +167,7 @@ export default function DamageReport() {
               keyboardType="numeric"
             />
 
+            {/* Description */}
             <Text style={styles.label}>Describe the Damage</Text>
             <TextInput
               style={[styles.input, { height: 90, textAlignVertical: "top" }]}
@@ -154,6 +178,7 @@ export default function DamageReport() {
               multiline
             />
 
+            {/* Submit Button */}
             <TouchableOpacity
               style={styles.submitButton}
               onPress={handleSubmit}

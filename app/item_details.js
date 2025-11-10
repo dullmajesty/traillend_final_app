@@ -16,6 +16,7 @@ import { Calendar } from "react-native-calendars";
 import * as ImagePicker from "expo-image-picker";
 import Modal from "react-native-modal";
 import { LinearGradient } from "expo-linear-gradient";
+import Toast from "react-native-toast-message";
 
 export default function ItemDetails() {
   const router = useRouter();
@@ -28,6 +29,7 @@ export default function ItemDetails() {
   const [availableQty, setAvailableQty] = useState(null);
   const [borrowQty, setBorrowQty] = useState("");
   const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [showProceedModal, setShowProceedModal] = useState(false);
   const [selectingType, setSelectingType] = useState("borrow");
   const [markedDates, setMarkedDates] = useState({});
   const [checking, setChecking] = useState(false);
@@ -39,9 +41,9 @@ export default function ItemDetails() {
   const [calendarLoading, setCalendarLoading] = useState(false);
 
   const URGENCY_OPTIONS = [
-    { key: "High", display: "High — Bereavement" },
-    { key: "Medium", display: "Medium — Event" },
-    { key: "Low", display: "Low — General" },
+    { key: "High", display: "High - For urgent family loss or critical need" },
+    { key: "Medium", display: "Medium - For events, barangay activities, or school programs" },
+    { key: "Low", display: "Low - For normal or general borrowing needs" },
   ];
 
   useEffect(() => {
@@ -145,7 +147,11 @@ export default function ItemDetails() {
   const pickImage = async (setImage) => {
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
     if (!permissionResult.granted) {
-      Alert.alert("Permission required", "Camera access is needed.");
+      Toast.show({
+        type: "error",
+        text1: "Permission Denied",
+        text2: "Please allow gallery access to upload a photo.",
+      });
       return;
     }
 
@@ -159,6 +165,11 @@ export default function ItemDetails() {
             quality: 0.7,
           });
           if (!result.canceled) setImage(result.assets[0].uri);
+           Toast.show({
+            type: "success",
+            text1: "Photo Added",
+            text2: "Your photo was captured successfully.",
+          });
         },
       },
       {
@@ -170,32 +181,58 @@ export default function ItemDetails() {
             quality: 0.7,
           });
           if (!result.canceled) setImage(result.assets[0].uri);
+          Toast.show({
+            type: "success",
+            text1: "Photo Added",
+            text2: "Your photo has been selected.",
+          });
         },
       },
       { text: "Cancel", style: "cancel" },
     ]);
   };
 
-  const preflightAndGoToSummary = async () => {
-    if (!borrowDate || !returnDate)
-      return Alert.alert("Missing Dates", "Select both borrow and return dates.");
-    if (!borrowQty)
-      return Alert.alert("Quantity required", "Please enter how many you need.");
 
-    setChecking(true);
-    try {
-      const res = await fetch("http://192.168.1.8:8000/api/reservations/check/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          item_id: Number(id),
-          qty: Number(borrowQty),
-          start_date: borrowDate,
-          end_date: returnDate,
-        }),
+const preflightAndGoToSummary = async () => {
+  if (!borrowDate || !returnDate) {
+    Toast.show({
+      type: "error",
+      text1: "Missing Dates",
+      text2: "Please select both borrow and return dates before continuing.",
+    });
+    return;
+  }
+
+  if (!borrowQty) {
+    Toast.show({
+      type: "error",
+      text1: "Missing Quantity",
+      text2: "Enter how many items you want to borrow.",
+    });
+    return;
+  }
+
+  setChecking(true);
+  try {
+    const res = await fetch("http://192.168.1.8:8000/api/reservations/check/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        item_id: Number(id),
+        qty: Number(borrowQty),
+        start_date: borrowDate,
+        end_date: returnDate,
+      }),
+    });
+
+    if (res.status === 200) {
+      Toast.show({
+        type: "success",
+        text1: "Checking Completed",
+        text2: "Item is available. Redirecting to summary...",
       });
 
-      if (res.status === 200) {
+      setTimeout(() => {
         router.push({
           pathname: "/item_reservation_summary",
           params: {
@@ -211,19 +248,36 @@ export default function ItemDetails() {
             itemID: String(item?.item_id),
           },
         });
-      } else if (res.status === 409) {
-        const data = await res.json();
-        Alert.alert("Unavailable", `Next available: ${data.suggestions?.[0]?.date || "N/A"}`);
-      } else {
-        const data = await res.json();
-        Alert.alert("Error", data.detail || "Could not check availability.");
-      }
-    } catch {
-      Alert.alert("Network error", "Please check your connection.");
-    } finally {
-      setChecking(false);
+      }, 800);
+    } else if (res.status === 409) {
+      const data = await res.json();
+      Alert.alert(
+        "Unavailable",
+        `Sorry, this item is unavailable for your selected date.\nNext available: ${
+          data.suggestions?.[0]?.date || "N/A"
+        }`,
+        [{ text: "OK", style: "default" }]
+      );
+    } else {
+      const data = await res.json();
+      Toast.show({
+        type: "error",
+        text1: "Error Checking Availability",
+        text2: data.detail || "Could not check item availability.",
+      });
     }
-  };
+  } catch {
+    Toast.show({
+      type: "error",
+      text1: "Network Error",
+      text2: "Please check your internet connection.",
+    });
+  } finally {
+    setChecking(false);
+  }
+};
+
+
 
   if (loading)
     return (
@@ -282,18 +336,41 @@ export default function ItemDetails() {
         </View>
 
         {/* Upload Buttons */}
-        <TouchableOpacity
-          style={styles.uploadBtn}
-          onPress={() => pickImage(setLetterPhoto)}
-        >
-          <Text style={styles.uploadText}>Upload Letter</Text>
-        </TouchableOpacity>
-        {letterPhoto && <Image source={{ uri: letterPhoto }} style={styles.preview} />}
+        <View style={styles.uploadSection}>
+          {/* Upload Letter */}
+          <TouchableOpacity
+            style={styles.uploadCard}
+            onPress={() => pickImage(setLetterPhoto)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="document-text-outline" size={26} color="#1976D2" />
+            <View style={{ marginLeft: 10 }}>
+              <Text style={styles.uploadTitle}>Upload Authorization Letter</Text>
+              <Text style={styles.uploadHint}>
+                Must include the <Text style={styles.uploadEmphasis}>signature of the Barangay Captain</Text>.
+              </Text>
+            </View>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.uploadBtn} onPress={() => pickImage(setIdPhoto)}>
-          <Text style={styles.uploadText}>Upload Valid ID</Text>
-        </TouchableOpacity>
-        {idPhoto && <Image source={{ uri: idPhoto }} style={styles.preview} />}
+          {letterPhoto && <Image source={{ uri: letterPhoto }} style={styles.preview} />}
+
+          {/* Upload Valid ID */}
+          <TouchableOpacity
+            style={styles.uploadCard}
+            onPress={() => pickImage(setIdPhoto)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="id-card-outline" size={26} color="#1976D2" />
+            <View style={{ marginLeft: 10 }}>
+              <Text style={styles.uploadTitle}>Upload Valid ID</Text>
+              <Text style={styles.uploadHint}>
+                Accepted IDs: <Text style={styles.uploadEmphasis}>Government-issued, Student ID, or Birth Certificate</Text>.
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {idPhoto && <Image source={{ uri: idPhoto }} style={styles.preview} />}
+        </View>
 
         {/* Priority Pills */}
         <Text style={styles.label}>Priority:</Text>
@@ -330,7 +407,7 @@ export default function ItemDetails() {
           activeOpacity={0.9}
           style={styles.reserveBtn}
           disabled={checking}
-          onPress={preflightAndGoToSummary}
+          onPress={() => setShowProceedModal(true)}
         >
           <LinearGradient
             colors={["#FFA500", "#FFA500"]}
@@ -474,6 +551,107 @@ export default function ItemDetails() {
           )}
         </View>
       </Modal>
+  
+     {/* Proceed Notice Modal */}
+      <Modal
+        isVisible={showProceedModal}
+        backdropOpacity={0.5}
+        animationIn="fadeInUp"
+        animationOut="fadeOutDown"
+        onBackdropPress={() => setShowProceedModal(false)}
+      >
+        <View style={styles.noticeCard}>
+          {/* Header */}
+          <View style={styles.noticeHeader}>
+            <Ionicons name="alert-circle-outline" size={28} color="#64B5F6" />
+            <Text style={styles.noticeTitle}>Before You Proceed</Text>
+          </View>
+
+          <Text style={styles.noticeSubtitle}>
+            Please review the following reminders carefully before submitting your reservation request.
+          </Text>
+
+          {/* Content */}
+          <ScrollView
+            style={{ maxHeight: 420 }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingVertical: 10 }}
+          >
+            {[
+              {
+                title: "Reservation Recording",
+                text:
+                  "All reservation details — including your name, contact information, and selected items — will be recorded in the system for proper documentation and verification.",
+              },
+              {
+                title: "Accuracy of Information",
+                text:
+                  "Ensure all details you provide are true and complete. False or misleading information may result in cancellation or account suspension.",
+              },
+              {
+                title: "Identification Requirement",
+                text:
+                  "A valid government-issued ID is required. A Student ID or Birth Certificate may also be accepted. Fake or expired IDs will result in immediate suspension.",
+              },
+              {
+                title: "Claiming Policy",
+                text:
+                  "Items must be claimed on the scheduled date. Failure to claim will result in 1 warning. Accumulating 3 warnings will mark your account as a bad borrower and may result in a ban.",
+              },
+              {
+                title: "Late Return Policy",
+                text:
+                  "Late returns will be recorded and may result in warnings. Repeated late returns will mark you as a bad borrower.",
+              },
+              {
+                title: "Unreturned or Lost Items",
+                text:
+                  "Failure to return an item within 7 days after the due date is a serious violation. You may be required to replace the item or face suspension. Repeated cases can lead to permanent banning.",
+              },
+              {
+                title: "Damaged Items",
+                text:
+                  "Any damage must be reported immediately. Borrowers are responsible for repair or replacement. Three recorded damages will result in borrowing suspension.",
+              },
+              {
+                title: "Privacy Policy",
+                text:
+                  "All personal data is handled confidentially and used only for official TrailLend and Barangay Kauswagan purposes, following the Data Privacy Act.",
+              },
+            ].map((item, index) => (
+              <View key={index} style={styles.noticeItem}>
+                <View style={styles.noticeDot} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.noticeHeading}>{item.title}</Text>
+                  <Text style={styles.noticeText}>{item.text}</Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+
+          {/* Buttons */}
+          <View style={styles.noticeBtnRow}>
+            <TouchableOpacity
+              style={[styles.noticeBtn, styles.noticeCancelBtn]}
+              onPress={() => setShowProceedModal(false)}
+            >
+              <Ionicons name="close-circle-outline" size={18} color="#555" />
+              <Text style={[styles.noticeBtnText, { color: "#333" }]}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.noticeBtn, styles.noticeContinueBtn]}
+              onPress={() => {
+                setShowProceedModal(false);
+                preflightAndGoToSummary();
+              }}
+            >
+              <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+              <Text style={[styles.noticeBtnText, { color: "#fff" }]}>Continue</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -515,15 +693,54 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   qtyText: { color: "#333", fontWeight: "700" },
-  uploadBtn: {
-    backgroundColor: "#1976D2",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
-    alignItems: "center",
-    elevation: 3,
-  },
-  uploadText: { color: "#fff", fontWeight: "600" },
+  uploadSection: {
+  marginTop: 10,
+  marginBottom: 20,
+},
+
+uploadCard: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "#fff",
+  borderRadius: 14,
+  borderWidth: 1.5,
+  borderColor: "#1976D2",
+  padding: 14,
+  marginBottom: 12,
+  elevation: 4,
+  shadowColor: "#000",
+  shadowOpacity: 0.1,
+  shadowRadius: 5,
+  shadowOffset: { width: 0, height: 2 },
+},
+
+uploadTitle: {
+  fontSize: 14,
+  fontWeight: "700",
+  color: "#1976D2",
+  marginBottom: 2,
+},
+
+uploadHint: {
+  fontSize: 12,
+  color: "#555",
+  fontStyle: "italic",
+  lineHeight: 16,
+},
+
+uploadEmphasis: {
+  color: "#E65100",
+  fontWeight: "600",
+},
+
+preview: {
+  width: "100%",
+  height: 180,
+  borderRadius: 12,
+  marginBottom: 10,
+  marginTop: -2,
+},
+
   preview: { width: "100%", height: 180, borderRadius: 12, marginBottom: 10 },
   label: { color: "#fff", fontWeight: "600", marginBottom: 6 },
   priorityRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
@@ -552,4 +769,96 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: "row", alignItems: "center" },
   legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 5 },
   legendText: { fontSize: 13, color: "#333" },
+noticeCard: {
+  backgroundColor: "#fff",
+  borderRadius: 18,
+  padding: 20,
+  elevation: 10,
+  shadowColor: "#000",
+  shadowOpacity: 0.2,
+  shadowRadius: 6,
+  shadowOffset: { width: 0, height: 3 },
+},
+
+noticeHeader: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  marginBottom: 8,
+},
+
+noticeTitle: {
+  fontSize: 20,
+  fontWeight: "700",
+  color: "#64B5F6",
+  marginLeft: 8,
+},
+
+noticeSubtitle: {
+  fontSize: 13,
+  color: "#555",
+  textAlign: "center",
+  marginBottom: 12,
+  lineHeight: 18,
+},
+
+noticeItem: {
+  flexDirection: "row",
+  alignItems: "flex-start",
+  marginBottom: 10,
+},
+
+noticeDot: {
+  width: 8,
+  height: 8,
+  borderRadius: 4,
+  backgroundColor: "#64B5F6",
+  marginRight: 10,
+  marginTop: 6,
+},
+
+noticeHeading: {
+  fontWeight: "700",
+  fontSize: 13.5,
+  color: "#1976D2",
+  marginBottom: 2,
+},
+
+noticeText: {
+  color: "#444",
+  fontSize: 13,
+  lineHeight: 18,
+},
+
+noticeBtnRow: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  marginTop: 15,
+},
+
+noticeBtn: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  flex: 0.48,
+  paddingVertical: 10,
+  borderRadius: 10,
+  elevation: 2,
+},
+
+noticeCancelBtn: {
+  backgroundColor: "#eee",
+},
+
+noticeContinueBtn: {
+  backgroundColor: "#64B5F6",
+},
+
+noticeBtnText: {
+  fontWeight: "600",
+  fontSize: 14,
+  marginLeft: 5,
+},
+
+
 });

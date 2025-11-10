@@ -12,6 +12,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Toast from "react-native-toast-message";
+
 
 export default function ReservationSummary() {
   const router = useRouter();
@@ -41,58 +43,84 @@ export default function ReservationSummary() {
     return p;
   };
 
-  const handleConfirm = async () => {
-    if (!acceptTerms) return alert("Please agree to Terms and Conditions first.");
+ const handleConfirm = async () => {
+  if (!acceptTerms) {
+    Toast.show({
+      type: "error",
+      text1: "Terms Not Accepted",
+      text2: "Please agree to the Terms and Conditions before proceeding.",
+    });
+    return;
+  }
 
+  try {
+    const accessToken = await AsyncStorage.getItem("accessToken");
+    if (!accessToken) {
+      Toast.show({
+        type: "error",
+        text1: "Not Signed In",
+        text2: "Your session expired. Please log in again.",
+      });
+      return;
+    }
+
+    const parsedItemID = parseInt(itemID, 10);
+    const parsedQty = parseInt(qty, 10);
+    const contactNumber = (await AsyncStorage.getItem("contactNumber")) || "";
+
+    const form = new FormData();
+    form.append("itemID", String(parsedItemID));
+    form.append("quantity", String(parsedQty));
+    form.append("start_date", start_date);
+    form.append("end_date", end_date);
+    form.append("message", message || "");
+    form.append("priority", priority || "Low");
+    form.append("contact", contactNumber);
+
+    if (letterPhoto) {
+      form.append("letter_image", {
+        uri: letterPhoto,
+        name: "letter.jpg",
+        type: "image/jpeg",
+      });
+    }
+    if (idPhoto) {
+      form.append("valid_id_image", {
+        uri: idPhoto,
+        name: "valid_id.jpg",
+        type: "image/jpeg",
+      });
+    }
+
+    Toast.show({
+      type: "info",
+      text1: "Submitting Request",
+      text2: "Please wait while we process your reservation...",
+    });
+
+    const res = await fetch("http://192.168.1.8:8000/api/create_reservation/", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: form,
+    });
+
+    const raw = await res.text();
+    let data = null;
     try {
-      const accessToken = await AsyncStorage.getItem("accessToken");
-      if (!accessToken) return Alert.alert("Not signed in", "Please log in again.");
+      data = JSON.parse(raw);
+    } catch {
+      console.warn("Invalid JSON from backend:", raw);
+    }
 
-      const parsedItemID = parseInt(itemID, 10);
-      const parsedQty = parseInt(qty, 10);
-      const contactNumber = (await AsyncStorage.getItem("contactNumber")) || "";
-
-      const form = new FormData();
-      form.append("itemID", String(parsedItemID));
-      form.append("quantity", String(parsedQty));
-      form.append("start_date", start_date);
-      form.append("end_date", end_date);
-      form.append("message", message || "");
-      form.append("priority", priority || "Low");
-      form.append("contact", contactNumber);
-
-      if (letterPhoto) {
-        form.append("letter_image", {
-          uri: letterPhoto,
-          name: "letter.jpg",
-          type: "image/jpeg",
-        });
-      }
-      if (idPhoto) {
-        form.append("valid_id_image", {
-          uri: idPhoto,
-          name: "valid_id.jpg",
-          type: "image/jpeg",
-        });
-      }
-
-      const res = await fetch("http://192.168.1.8:8000/api/create_reservation/", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}` },
-        body: form,
+    if (res.status === 201) {
+      Toast.show({
+        type: "success",
+        text1: "Reservation Successful",
+        text2: "Your reservation has been created!",
       });
 
-      const raw = await res.text();
-      let data = null;
-      try {
-        data = JSON.parse(raw);
-      } catch {
-        console.warn("Invalid JSON from backend:", raw);
-      }
-
-      if (res.status === 201) {
-        Alert.alert("Success", "Reservation created successfully!");
-        return router.push({
+      setTimeout(() => {
+        router.push({
           pathname: "/item_reservation_receipt",
           params: {
             start_date: start_date || "N/A",
@@ -102,21 +130,51 @@ export default function ReservationSummary() {
             quantity: String(parsedQty || 0),
           },
         });
-      }
-
-      if (res.status === 409)
-        return Alert.alert("Unavailable", data?.detail || "Item just got reserved by another user.");
-      if (res.status === 401)
-        return Alert.alert("Unauthorized", "Your session may have expired. Please log in again.");
-      if (res.status >= 500)
-        return Alert.alert("Server Error", "A server issue occurred. Try again later.");
-
-      Alert.alert("Error", data?.detail || data?.error || "Failed to create reservation.");
-    } catch (err) {
-      console.error("❌ Reservation Error:", err);
-      Alert.alert("Network error", "Please check your connection.");
+      }, 900);
+      return;
     }
-  };
+
+    if (res.status === 409) {
+      Alert.alert(
+        "Unavailable",
+        data?.detail || "Item just got reserved by another user."
+      );
+      return;
+    }
+
+    if (res.status === 401) {
+      Toast.show({
+        type: "error",
+        text1: "Unauthorized",
+        text2: "Session expired. Please log in again.",
+      });
+      return;
+    }
+
+    if (res.status >= 500) {
+      Toast.show({
+        type: "error",
+        text1: "Server Error",
+        text2: "Something went wrong on the server. Try again later.",
+      });
+      return;
+    }
+
+    Toast.show({
+      type: "error",
+      text1: "Reservation Failed",
+      text2: data?.detail || data?.error || "Unable to create reservation.",
+    });
+  } catch (err) {
+    console.error("Reservation Error:", err);
+    Toast.show({
+      type: "error",
+      text1: "Network Error",
+      text2: "Please check your internet connection.",
+    });
+  }
+};
+
 
   return (
     <View style={styles.container}>
@@ -261,7 +319,7 @@ const styles = StyleSheet.create({
     borderColor: "#ffffff33",
   },
   sectionTitle: {
-    color: "#fff",
+    color: "#0d0d0dff",
     fontWeight: "700",
     fontSize: 15,
     marginBottom: 10,
@@ -277,14 +335,14 @@ const styles = StyleSheet.create({
   },
 
   row: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
-  label: { color: "#eee", fontSize: 13, width: "45%" },
-  value: { color: "#fff", fontWeight: "600", fontSize: 14, textAlign: "right", flex: 1 },
+  label: { color: "#060606ff", fontSize: 13, width: "45%" },
+  value: { color: "#060606ff", fontWeight: "600", fontSize: 14, textAlign: "right", flex: 1 },
   imageBox: { alignItems: "center", marginVertical: 8 },
-  imagePreview: { width: 120, height: 120, borderRadius: 10, backgroundColor: "#fff" },
-  imageLabel: { color: "#fff", marginTop: 5, fontWeight: "600" },
+  imagePreview: { width: 120, height: 120, borderRadius: 10, backgroundColor: "#060606ff" },
+  imageLabel: { color: "#060606ff", marginTop: 5, fontWeight: "600" },
   checkboxRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
-  checkboxText: { color: "#fff", marginLeft: 8, fontWeight: "600" },
-  termsText: { color: "#f0f0f0", fontSize: 12, marginTop: 8, lineHeight: 18 },
+  checkboxText: { color: "#060606ff", marginLeft: 8, fontWeight: "600" },
+  termsText: { color: "#060606ff", fontSize: 12, marginTop: 8, lineHeight: 18 },
   confirmBtn: {
     padding: 15,
     borderRadius: 10,
@@ -295,7 +353,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
-  confirmText: { color: "#fff", fontWeight: "bold", textAlign: "center", fontSize: 16 },
+  confirmText: { color: "#060606ff", fontWeight: "bold", textAlign: "center", fontSize: 16 },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.9)",

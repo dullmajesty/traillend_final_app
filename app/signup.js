@@ -5,45 +5,150 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
-  ScrollView,
+  Image,
   KeyboardAvoidingView,
   Platform,
-  Image,
+  ScrollView,
 } from "react-native";
-import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import Toast from "react-native-toast-message"; // 
+
+const BASE_URL = "http://192.168.1.8:8000";
 
 export default function SignUp() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [address, setAddress] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // ✅ Strong password checker
+  const isStrongPassword = (pwd) => {
+    const strongRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^])[A-Za-z\d@$!%*?&#^]{8,}$/;
+    const common = [
+      "1234",
+      "password",
+      "shane2004",
+      "abc123",
+      "qwerty",
+      "admin",
+      "test",
+    ];
+    return strongRegex.test(pwd) && !common.some((w) => pwd.toLowerCase().includes(w));
+  };
+
+  const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
+  const isValidContact = (num) => /^09\d{9}$/.test(num);
 
   const handleSignUp = async () => {
+    if (!name || !username || !email || !contactNumber || !address || !password || !confirmPassword) {
+      Toast.show({
+        type: "error",
+        text1: "Missing Fields",
+        text2: "Please fill out all required fields.",
+      });
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      Toast.show({
+        type: "error",
+        text1: "Invalid Email",
+        text2: "Please enter a valid email address.",
+      });
+      return;
+    }
+
+    if (!isValidContact(contactNumber)) {
+      Toast.show({
+        type: "error",
+        text1: "Invalid Contact Number",
+        text2: "Enter an 11-digit number starting with 09.",
+      });
+      return;
+    }
+
     if (password !== confirmPassword) {
-      Alert.alert("Passwords do not match!");
+      Toast.show({
+        type: "error",
+        text1: "Password Mismatch",
+        text2: "Your passwords do not match.",
+      });
+      return;
+    }
+
+    if (!isStrongPassword(password)) {
+      Toast.show({
+        type: "error",
+        text1: "Weak Password",
+        text2:
+          "Use at least 8 characters with uppercase, lowercase, number, and symbol.",
+      });
       return;
     }
 
     try {
-      const res = await axios.post(
-        "http://192.168.1.8:8000/api/register/",
-        { name, username, contactNumber, address, password, confirmPassword },
-        { headers: { "Content-Type": "application/json" } }
+      setLoading(true);
+
+      const response = await axios.post(
+        `${BASE_URL}/api/register/`,
+        {
+          name,
+          username,
+          email,
+          contactNumber,
+          address,
+          password,
+          confirmPassword,
+        },
+        { headers: { "Content-Type": "application/json" }, timeout: 8000 }
       );
-      Alert.alert(res.data.message);
-      if (res.data.success) router.replace("/login");
+
+      if (response.data?.status === "success") {
+        Toast.show({
+          type: "success",
+          text1: "Registration Successful",
+          text2: "Please check your email to verify your account.",
+        });
+        setTimeout(() => router.replace("/login"), 1500);
+      } else if (response.data?.message?.includes("username")) {
+        Toast.show({
+          type: "error",
+          text1: "Username Taken",
+          text2: "Please choose a different username.",
+        });
+      } else if (response.data?.message?.includes("email")) {
+        Toast.show({
+          type: "error",
+          text1: "Email Already Registered",
+          text2: "Try logging in instead.",
+        });
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "Registration Failed",
+          text2: response.data?.message || "Please try again.",
+        });
+      }
     } catch (err) {
-      console.error(err);
-      Alert.alert("Error", "Registration failed. Please try again.");
+      console.error("Signup error:", err.response?.data || err.message);
+      Toast.show({
+        type: "error",
+        text1: "Network Error",
+        text2: "Unable to connect to server. Please try again.",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -57,9 +162,7 @@ export default function SignUp() {
           {/* Header / Logo */}
           <View style={styles.headerContainer}>
             <Text style={styles.title}>TrailLend</Text>
-            <Text style={styles.subtitle}>
-              Join our growing community 🌿
-            </Text>
+            <Text style={styles.subtitle}>Join our growing community 🌿</Text>
           </View>
 
           {/* Registration Card */}
@@ -78,6 +181,15 @@ export default function SignUp() {
               placeholder="Username"
               value={username}
               onChangeText={setUsername}
+              placeholderTextColor="#999"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
               placeholderTextColor="#999"
             />
             <TextInput
@@ -141,15 +253,21 @@ export default function SignUp() {
             </View>
 
             {/* Sign Up Button */}
-            <TouchableOpacity activeOpacity={0.9} onPress={handleSignUp}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={handleSignUp}
+              disabled={loading}
+            >
               <LinearGradient
                 colors={["#64B5F6", "#1976D2"]}
                 start={[0, 0]}
                 end={[1, 0]}
-                style={styles.button}
+                style={[styles.button, loading && { opacity: 0.6 }]}
               >
                 <Ionicons name="person-add-outline" size={20} color="#fff" />
-                <Text style={styles.buttonText}>Sign Up</Text>
+                <Text style={styles.buttonText}>
+                  {loading ? "Creating Account..." : "Sign Up"}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
 
@@ -188,15 +306,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     paddingVertical: 40,
   },
-  headerContainer: {
-    alignItems: "center",
-    marginBottom: 30,
-  },
-  title: {
-    fontSize: 42,
-    fontWeight: "bold",
-    color: "#fff",
-  },
+  headerContainer: { alignItems: "center", marginBottom: 30 },
+  title: { fontSize: 42, fontWeight: "bold", color: "#fff" },
   subtitle: {
     fontSize: 14,
     color: "rgba(255,255,255,0.9)",
@@ -231,10 +342,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#333",
   },
-  passwordWrapper: {
-    position: "relative",
-    marginBottom: 15,
-  },
+  passwordWrapper: { position: "relative", marginBottom: 15 },
   inputPassword: {
     width: "100%",
     height: 50,
@@ -254,23 +362,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     marginBottom: 20,
   },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 16,
-    marginLeft: 8,
-  },
+  buttonText: { color: "#fff", fontWeight: "700", fontSize: 16, marginLeft: 8 },
   loginRow: { flexDirection: "row", justifyContent: "center" },
   loginText: { color: "#1976D2", fontWeight: "700" },
-  illustrationContainer: {
-    alignItems: "center",
-    marginTop: 10,
-  },
-  illustration: {
-    width: 220,
-    height: 60,
-    opacity: 0.9,
-  },
+  illustrationContainer: { alignItems: "center", marginTop: 10 },
+  illustration: { width: 220, height: 60, opacity: 0.9 },
   communityText: {
     color: "rgba(255,255,255,0.9)",
     fontSize: 13,
