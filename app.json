@@ -21,13 +21,15 @@
         "foregroundImage": "./assets/TRAILLEND-ICON.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
-    },
-    "web": {
-      "favicon": "./assets/TRAILLEND-ICON.png"
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "READ_MEDIA_IMAGES",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-media-library"
     ]
   }
 }

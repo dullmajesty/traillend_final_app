@@ -35,17 +35,24 @@ const fetchItems = async () => {
     if (!response.ok) throw new Error("Failed to fetch items");
 
     const data = await response.json();
-    setItems(data);
+
+    // ⭐ SORT ITEMS A → Z 
+    const sortedItems = data.sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+
+    setItems(sortedItems);
   } catch (error) {
     console.error("Error fetching items:", error);
     if (error.message === "Session expired") {
       alert("Your session has expired. Please log in again.");
-      router.replace("/login"); // navigate to login screen
+      router.replace("/login");
     }
   } finally {
     setLoading(false);
   }
 };
+
 
 
   // Hook for pull-to-refresh

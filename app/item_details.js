@@ -49,7 +49,7 @@ export default function ItemDetails() {
   useEffect(() => {
     const fetchItem = async () => {
       try {
-        const res = await fetch("http://192.168.1.8:8000/api/inventory_list/");
+        const res = await fetch("http://10.92.122.115:8000/api/inventory_list/");
         const data = await res.json();
         const found = data.find((i) => i.item_id === parseInt(id));
         setItem(found);
@@ -67,7 +67,7 @@ export default function ItemDetails() {
     setCalendarLoading(true);
 
     //  Fetch the 60-day map directly from backend
-    const res = await fetch(`http://192.168.1.8:8000/api/items/${id}/availability-map/`);
+    const res = await fetch(`http://10.92.122.115:8000/api/items/${id}/availability-map/`);
     const json = await res.json();
 
     const map = json.calendar || {};
@@ -123,7 +123,7 @@ export default function ItemDetails() {
   const fetchAvailability = async (date) => {
     try {
       const res = await fetch(
-        `http://192.168.1.8:8000/api/items/${id}/availability/?date=${date}`
+        `http://10.92.122.115:8000/api/items/${id}/availability/?date=${date}`
       );
       if (!res.ok) return null;
       const data = await res.json();
@@ -214,7 +214,7 @@ const preflightAndGoToSummary = async () => {
 
   setChecking(true);
   try {
-    const res = await fetch("http://192.168.1.8:8000/api/reservations/check/", {
+    const res = await fetch("http://10.92.122.115:8000/api/reservations/check/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -407,7 +407,27 @@ const preflightAndGoToSummary = async () => {
           activeOpacity={0.9}
           style={styles.reserveBtn}
           disabled={checking}
-          onPress={() => setShowProceedModal(true)}
+          onPress={() => {
+              if (!letterPhoto) {
+                Toast.show({
+                  type: "error",
+                  text1: "Authorization Letter Required",
+                  text2: "Please upload your authorization letter.",
+                });
+                return;
+              }
+
+              if (!idPhoto) {
+                Toast.show({
+                  type: "error",
+                  text1: "Valid ID Required",
+                  text2: "Please upload your valid ID.",
+                });
+                return;
+              }
+
+              setShowProceedModal(true);
+          }}
         >
           <LinearGradient
             colors={["#FFA500", "#FFA500"]}
@@ -464,36 +484,45 @@ const preflightAndGoToSummary = async () => {
                 else setReturnDate(date);
 
                 // Reset all previous blue highlights, keep default map colors
-                const newMarks = { ...markedDates };
+                const newMarks = {};
 
-                // remove all previous blue dates (user selections)
-                Object.keys(newMarks).forEach((key) => {
-                  const info = calendarMap[key];
-                  if (info?.status === "fully_reserved") {
+                Object.entries(calendarMap).forEach(([key, info]) => {
+                  if (info.status === "fully_reserved") {
                     newMarks[key] = {
-                      disabled: true,
-                      disableTouchEvent: true,
+                      ...markedDates[key],
                       customStyles: {
                         container: { backgroundColor: "#ffcccc" },
                         text: { color: "#a00", fontWeight: "bold" },
-                      },
+                      }
+                    };
+                  } else if (info.status === "blocked") {
+                    newMarks[key] = {
+                      ...markedDates[key],
+                      disabled: true,
+                      disableTouchEvent: true,
+                      customStyles: {
+                        container: { backgroundColor: "#d3d3d3" },
+                        text: { color: "#555", fontWeight: "bold" },
+                      }
                     };
                   } else {
                     newMarks[key] = {
+                      ...markedDates[key],
                       customStyles: {
                         container: { backgroundColor: "#e6ffe6" },
                         text: { color: "#008000", fontWeight: "600" },
-                      },
+                      }
                     };
                   }
                 });
 
-                // mark only the newly selected date as blue
+                // Mark the user-selected date as blue
                 newMarks[date] = {
+                  ...newMarks[date],
                   customStyles: {
                     container: { backgroundColor: "#1E88E5" },
-                    text: { color: "#fff", fontWeight: "bold" },
-                  },
+                    text: { color: "#fff", fontWeight: "bold" }
+                  }
                 };
 
                 setMarkedDates(newMarks);

@@ -67,7 +67,7 @@ export default function DamageReport() {
         return;
       }
 
-      const apiURL = "http://192.168.1.8:8000/api/damage-report/";
+      const apiURL = "http://10.92.122.115:8000/api/damage-report/";
 
       const formData = new FormData();
       formData.append("location", location);

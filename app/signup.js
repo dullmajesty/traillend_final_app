@@ -16,7 +16,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message"; // 
 
-const BASE_URL = "http://192.168.1.8:8000";
+const BASE_URL = "http://10.92.122.115:8000";
 
 export default function SignUp() {
   const router = useRouter();
@@ -30,6 +30,10 @@ export default function SignUp() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [emailSentModal, setEmailSentModal] = useState(false);
+  const [sentEmail, setSentEmail] = useState("");
+
+
 
   // ✅ Strong password checker
   const isStrongPassword = (pwd) => {
@@ -114,7 +118,7 @@ export default function SignUp() {
         { headers: { "Content-Type": "application/json" }, timeout: 8000 }
       );
 
-      if (response.data?.status === "success") {
+      if (response.data?.success === true) {
         Toast.show({
           type: "success",
           text1: "Registration Successful",
@@ -152,8 +156,85 @@ export default function SignUp() {
     }
   };
 
+
   return (
     <LinearGradient colors={["#4FC3F7", "#1E88E5"]} style={styles.gradient}>
+
+       {emailSentModal && (
+          <View style={{
+            position: "absolute",
+            top: 0, left: 0,
+            width: "100%", height: "100%",
+            backgroundColor: "rgba(0,0,0,0.6)",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 30,
+            zIndex: 9999
+          }}>
+            <View style={{
+              backgroundColor: "#fff",
+              borderRadius: 20,
+              width: "100%",
+              padding: 30,
+              alignItems: "center"
+            }}>
+              <Ionicons name="mail-unread-outline" size={70} color="#1976D2" />
+
+              <Text style={{
+                fontSize: 22,
+                fontWeight: "800",
+                marginTop: 15,
+                textAlign: "center",
+                color: "#1976D2"
+              }}>
+                Verify your email
+              </Text>
+
+              <Text style={{
+                marginTop: 10,
+                fontSize: 15,
+                color: "#444",
+                textAlign: "center"
+              }}>
+                We’ve sent a verification link to:
+              </Text>
+
+              <Text style={{
+                marginTop: 5,
+                fontWeight: "700",
+                color: "#000",
+                textAlign: "center"
+              }}>
+                {sentEmail}
+              </Text>
+
+              <Text style={{
+                marginTop: 10,
+                fontSize: 14,
+                color: "#666",
+                textAlign: "center"
+              }}>
+                Open the link to activate your account.
+              </Text>
+
+              <TouchableOpacity
+                onPress={() => router.replace("/login")}
+                style={{
+                  marginTop: 25,
+                  backgroundColor: "#1976D2",
+                  paddingVertical: 12,
+                  paddingHorizontal: 40,
+                  borderRadius: 10
+                }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                  Continue to Login
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}

@@ -19,7 +19,7 @@ import { setAuth } from "../lib/authStorage";
 import { LinearGradient } from "expo-linear-gradient";
 import Toast from "react-native-toast-message";
 
-const BASE_URL = "http://192.168.1.8:8000";
+const BASE_URL = "http://10.92.122.115:8000";
 
 export default function Login() {
   const router = useRouter();
@@ -59,6 +59,9 @@ export default function Login() {
     }
 
     try {
+      // Clear old status so new accounts don't inherit "Bad"
+      await AsyncStorage.removeItem("borrowerStatus");
+
       const res = await axios.post(
         `${BASE_URL}/api/login/`,
         { username, password },
@@ -66,6 +69,12 @@ export default function Login() {
       );
 
       const data = res.data;
+
+      // ⭐ Save "Bad" but do NOT show modal here anymore
+      if (data.borrower_status === "Bad") {
+        await AsyncStorage.setItem("borrowerStatus", "Bad");
+      }
+
       const { access, refresh } = data;
 
       if (!access || !refresh) {
@@ -96,7 +105,7 @@ export default function Login() {
         ]);
       }
 
-      // ✅ Fetch borrower info
+      // Fetch borrower info
       let borrowerStatus = "Good";
       try {
         const borrowerRes = await fetch(`${BASE_URL}/api/me_borrower/`, {
@@ -120,7 +129,6 @@ export default function Login() {
         console.warn("Error fetching borrower info:", err);
       }
 
-      // ✅ Success Toast
       Toast.show({
         type: "success",
         text1: "Login Successful 🎉",
@@ -213,7 +221,9 @@ export default function Login() {
                   onValueChange={setRememberMe}
                   thumbColor={rememberMe ? "#1976D2" : "#ccc"}
                 />
-                <Text style={{ marginLeft: 8, color: "#333" }}>Remember Me</Text>
+                <Text style={{ marginLeft: 8, color: "#333" }}>
+                  Remember Me
+                </Text>
               </View>
               <TouchableOpacity onPress={() => router.push("/forgotpassword")}>
                 <Text style={styles.forgotPassword}>Forgot Password?</Text>
@@ -233,7 +243,9 @@ export default function Login() {
             </TouchableOpacity>
 
             <View style={styles.signup}>
-              <Text style={{ color: "#333" }}>Don't have an account? </Text>
+              <Text style={{ color: "#333" }}>
+                Don't have an account?{" "}
+              </Text>
               <TouchableOpacity onPress={() => router.push("/signup")}>
                 <Text style={styles.signupText}>Create Account</Text>
               </TouchableOpacity>
