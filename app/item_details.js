@@ -160,7 +160,7 @@ export default function ItemDetails() {
         text: "Take Photo",
         onPress: async () => {
           const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: [ImagePicker.MediaType.Image],
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
 
             allowsEditing: true,
             quality: 0.7,
