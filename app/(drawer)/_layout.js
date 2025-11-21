@@ -220,7 +220,7 @@ function AppDrawer() {
           options={{ title: "Reservations Status" }}
         />
         <Drawer.Screen name="Edit_Profile" options={{ title: "Edit Profile" }} />
-        <Drawer.Screen name="Report_Damage" options={{ title: "Report Damage" }} />
+        <Drawer.Screen name="SelectItemToReport" options={{ title: "Report" }} />
       </Drawer>
     </>
   );

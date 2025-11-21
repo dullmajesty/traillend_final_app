@@ -49,7 +49,7 @@ export default function ItemDetails() {
   useEffect(() => {
     const fetchItem = async () => {
       try {
-        const res = await fetch("http://10.92.122.115:8000/api/inventory_list/");
+        const res = await fetch("http://192.168.43.118:8000/api/inventory_list/");
         const data = await res.json();
         const found = data.find((i) => i.item_id === parseInt(id));
         setItem(found);
@@ -67,7 +67,7 @@ export default function ItemDetails() {
     setCalendarLoading(true);
 
     //  Fetch the 60-day map directly from backend
-    const res = await fetch(`http://10.92.122.115:8000/api/items/${id}/availability-map/`);
+    const res = await fetch(`http://192.168.43.118:8000/api/items/${id}/availability-map/`);
     const json = await res.json();
 
     const map = json.calendar || {};
@@ -123,7 +123,7 @@ export default function ItemDetails() {
   const fetchAvailability = async (date) => {
     try {
       const res = await fetch(
-        `http://10.92.122.115:8000/api/items/${id}/availability/?date=${date}`
+        `http://192.168.43.118:8000/api/items/${id}/availability/?date=${date}`
       );
       if (!res.ok) return null;
       const data = await res.json();
@@ -160,7 +160,8 @@ export default function ItemDetails() {
         text: "Take Photo",
         onPress: async () => {
           const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: [ImagePicker.MediaType.Image],
+
             allowsEditing: true,
             quality: 0.7,
           });
@@ -176,7 +177,8 @@ export default function ItemDetails() {
         text: "Choose from Gallery",
         onPress: async () => {
           const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: [ImagePicker.MediaType.Image],
+
             allowsEditing: true,
             quality: 0.7,
           });
@@ -214,7 +216,7 @@ const preflightAndGoToSummary = async () => {
 
   setChecking(true);
   try {
-    const res = await fetch("http://10.92.122.115:8000/api/reservations/check/", {
+    const res = await fetch("http://192.168.43.118:8000/api/reservations/check/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

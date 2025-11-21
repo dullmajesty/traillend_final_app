@@ -98,7 +98,7 @@ export default function ReservationSummary() {
       text2: "Please wait while we process your reservation...",
     });
 
-    const res = await fetch("http://10.92.122.115:8000/api/create_reservation/", {
+    const res = await fetch("http://192.168.43.118:8000/api/create_reservation/", {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}` },
       body: form,

@@ -49,7 +49,7 @@ function Notifications() {
 
     
     await axios.patch(
-      "http://10.92.122.115:8000/api/notifications/mark_all_read/",
+      "http://192.168.43.118:8000/api/notifications/mark_all_read/",
       {},
       { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -134,7 +134,7 @@ function Notifications() {
           
           const token = await AsyncStorage.getItem("access_token");
 
-          await axios.delete(`http://10.92.122.115:8000/api/notifications/delete/${id}/`, {
+          await axios.delete(`http://192.168.43.118:8000/api/notifications/delete/${id}/`, {
             headers: { Authorization: `Bearer ${token}` },
           });
 

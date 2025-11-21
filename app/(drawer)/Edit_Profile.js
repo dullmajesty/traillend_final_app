@@ -15,7 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import Toast from "react-native-toast-message";
 
-const BASE_URL = "http://10.92.122.115:8000";
+const BASE_URL = "http://192.168.43.118:8000";
 
 export default function EditProfile() {
   const [image, setImage] = useState(null);
@@ -87,6 +87,7 @@ export default function EditProfile() {
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
+
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.9,

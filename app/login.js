@@ -19,7 +19,7 @@ import { setAuth } from "../lib/authStorage";
 import { LinearGradient } from "expo-linear-gradient";
 import Toast from "react-native-toast-message";
 
-const BASE_URL = "http://10.92.122.115:8000";
+const BASE_URL = "http://192.168.43.118:8000";
 
 export default function Login() {
   const router = useRouter();
@@ -131,8 +131,8 @@ export default function Login() {
 
       Toast.show({
         type: "success",
-        text1: "Login Successful 🎉",
-        text2: "Welcome back to TrailLend!",
+        text1: "Login Successful",
+        text2: "Welcome to TrailLend!",
       });
 
       setTimeout(() => {
