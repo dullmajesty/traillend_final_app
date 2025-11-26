@@ -1,13 +1,22 @@
 import { Stack } from "expo-router";
 import Toast from "react-native-toast-message";
+import usePushNotifications from "./hooks/usePushNotifications";
+import { useEffect } from "react";
 
 export default function RootLayout() {
+  const { expoPushToken } = usePushNotifications(); // 🔥 register + listeners
+
+  useEffect(() => {
+    if (expoPushToken) {
+      console.log("📌 Expo Push Token:", expoPushToken);
+    }
+  }, [expoPushToken]);
+
   return (
     <>
-      {/* Stack controls navigation for all screens including (drawer) */}
       <Stack screenOptions={{ headerShown: false }} />
 
-      {/* ✅ Global Toast: visible across all screens */}
+      {/* Global Toast for notifications */}
       <Toast position="top" topOffset={60} visibilityTime={3000} />
     </>
   );

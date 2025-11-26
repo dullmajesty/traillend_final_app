@@ -49,7 +49,7 @@ function Notifications() {
 
     
     await axios.patch(
-      "http://192.168.43.118:8000/api/notifications/mark_all_read/",
+      "http://10.147.69.115:8000/api/notifications/mark_all_read/",
       {},
       { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -134,7 +134,7 @@ function Notifications() {
           
           const token = await AsyncStorage.getItem("access_token");
 
-          await axios.delete(`http://192.168.43.118:8000/api/notifications/delete/${id}/`, {
+          await axios.delete(`http://10.147.69.115:8000/api/notifications/delete/${id}/`, {
             headers: { Authorization: `Bearer ${token}` },
           });
 
@@ -155,68 +155,46 @@ function Notifications() {
 
   //  Notification Card UI
   const renderNotification = ({ item }) => {
-    let iconName = "notifications-outline";
-    let iconColor = "#4A90E2";
-    switch (item.type) {
-      case "approval":
-        iconName = "checkmark-circle-outline";
-        iconColor = "#4CAF50";
-        break;
-      case "cancelled":
-        iconName = "close-circle-outline";
-        iconColor = "#E57373";
-        break;
-      case "claimed":
-        iconName = "hand-left-outline";
-        iconColor = "#42A5F5";
-        break;
-      case "returned":
-        iconName = "repeat-outline";
-        iconColor = "#9C27B0";
-        break;
-      case "pending":
-        iconName = "time-outline";
-        iconColor = "#FFB300";
-        break;
-      case "rejection":
-        iconName = "alert-circle-outline";
-        iconColor = "#E53935";
-      case "delayed":
-        iconName = "alert-outline";
-        iconColor = "#FF7043";
-        break;
-      case "return_reminder":
-        iconName = "alert-circle-outline";
-        iconColor = "#FF9800";
-        break;
-    }
+  let iconName = "notifications-outline";
+  let iconColor = "#4A90E2";
 
-    return (
-      <TouchableOpacity
-        style={[styles.card, item.is_read ? styles.read : styles.unread]}
-        onPress={() => openNotifModal(item)}
-      >
-        <View style={styles.cardHeader}>
-          <View style={styles.titleRow}>
-            <Ionicons name={iconName} size={20} color={iconColor} style={{ marginRight: 8 }} />
-            <Text style={styles.cardTitle}>{item.title}</Text>
-          </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+  switch (item.type) {
+    case "approval": iconName = "checkmark-circle-outline"; iconColor = "#4CAF50"; break;
+    case "cancelled": iconName = "close-circle-outline"; iconColor = "#E57373"; break;
+    case "claimed": iconName = "hand-left-outline"; iconColor = "#42A5F5"; break;
+    case "returned": iconName = "repeat-outline"; iconColor = "#9C27B0"; break;
+    case "pending": iconName = "time-outline"; iconColor = "#FFB300"; break;
+    case "rejection": iconName = "alert-circle-outline"; iconColor = "#E53935"; break;
+    case "delayed": iconName = "alert-outline"; iconColor = "#FF7043"; break;
+    case "return_reminder": iconName = "alert-circle-outline"; iconColor = "#FF9800"; break;
+  }
 
-          </View>
-          {item.qr_code && <Ionicons name="qr-code-outline" size={20} color="#1E88E5" />}
-          
+  return (
+    <TouchableOpacity
+      style={[styles.card, item.is_read ? styles.read : styles.unread]}
+      onPress={() => openNotifModal(item)}
+    >
+      {/* HEADER */}
+      <View style={styles.cardHeader}>
+        <View style={styles.titleRow}>
+          <Ionicons name={iconName} size={20} color={iconColor} style={{ marginRight: 8 }} />
+          <Text style={styles.cardTitle}>{item.title}</Text>
+        </View>
 
-          {/* 🔹 Delete icon (always visible) */}
-          <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteButton}>
-            <Ionicons name="trash-outline" size={20} color="#E53935" />
-          </TouchableOpacity></View>
+        {/* Delete Button */}
+        <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteButton}>
+          <Ionicons name="trash-outline" size={20} color="#E53935" />
+        </TouchableOpacity>
+      </View>
+  
+      {/* MESSAGE ONLY */}
+      <Text style={styles.cardMessage}>{item.message}</Text>
 
-        <Text style={styles.cardMessage}>{item.message}</Text>
-        <Text style={styles.date}>{item.created_at}</Text>
-      </TouchableOpacity>
-    );
-  };
+      {/* DATE ONLY */}
+      <Text style={styles.date}>{item.created_at}</Text>
+    </TouchableOpacity>
+  );
+};
 
   const renderGroup = (title, data, showMarkAll = false) =>
     data.length > 0 && (
@@ -421,13 +399,23 @@ function Notifications() {
                     : "Not Available"}
                 </Text>
               </Text>
-              <Text style={styles.detailText}>
-                Item:{" "}
-                <Text style={[styles.detailValue, { fontWeight: "700" }]}>
-                  {selectedNotif?.item_name || "No item info"}
-                </Text>
-              </Text>
-
+              {/* 🔹 LIST ALL ITEMS IN MODAL */}
+              {selectedNotif?.items && selectedNotif.items.length > 0 && (
+                <View style={{ marginBottom: 10 }}>
+                  {selectedNotif.items.map((it, idx) => (
+                    <View key={idx} style={styles.itemRow}>
+                      <Image
+                        source={{ uri: it.image }}
+                        style={styles.itemImg}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.itemName}>{it.item_name}</Text>  
+                        <Text style={{ fontSize: 12 }}>Qty: {it.quantity}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
               <View style={styles.divider} />
 
               {/* 🔹 Dynamic modal content */}
@@ -718,5 +706,27 @@ saveButton: {
   borderRadius: 10,
   marginTop: 20,
 },
+
+itemRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  marginBottom: 8,
+  marginTop: 4,
+},
+
+itemImg: {
+  width: 55,
+  height: 55,
+  borderRadius: 10,
+  marginRight: 10,
+  backgroundColor: "#eee",
+},
+
+itemName: {
+  fontSize: 14,
+  fontWeight: "600",
+  color: "#333",
+},
+
 
 });

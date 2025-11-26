@@ -16,7 +16,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message"; // 
 
-const BASE_URL = "http://192.168.43.118:8000";
+const BASE_URL = "http://10.147.69.115:8000";
 
 export default function SignUp() {
   const router = useRouter();
@@ -32,6 +32,10 @@ export default function SignUp() {
   const [loading, setLoading] = useState(false);
   const [emailSentModal, setEmailSentModal] = useState(false);
   const [sentEmail, setSentEmail] = useState("");
+  const [showPasswordRules, setShowPasswordRules] = useState(false);
+  const [passwordY, setPasswordY] = useState(0);
+
+
 
 
 
@@ -50,6 +54,18 @@ export default function SignUp() {
     ];
     return strongRegex.test(pwd) && !common.some((w) => pwd.toLowerCase().includes(w));
   };
+
+  const passwordChecks = (pwd) => {
+  return {
+    lower: /[a-z]/.test(pwd),
+    upper: /[A-Z]/.test(pwd),
+    number: /\d/.test(pwd),
+    symbol: /[@$!%*?&#^]/.test(pwd),
+    length: pwd.length >= 8,
+    noRepeat: !/(.)\1\1/.test(pwd), // no more than 2 consecutive identical chars
+  };
+};
+
 
   const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
   const isValidContact = (num) => /^09\d{9}$/.test(num);
@@ -289,16 +305,31 @@ export default function SignUp() {
               placeholderTextColor="#999"
             />
 
-            {/* Password */}
-            <View style={styles.passwordWrapper}>
-              <TextInput
-                style={styles.inputPassword}
-                placeholder="Password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                placeholderTextColor="#999"
-              />
+            {/* PASSWORD FIELD */}
+            <View
+              style={styles.passwordWrapper}
+              onLayout={(e) => {
+                const { y, height } = e.nativeEvent.layout;
+                setPasswordY(y + height + 5); // correct offset
+              }}
+            >
+          <TextInput
+            style={styles.inputPassword}
+            placeholder="Password"
+            value={password}
+            onChangeText={(text) => {
+              setPassword(text);
+
+              // 🔥 Auto-hide popup when password becomes strong
+              if (isStrongPassword(text)) {
+                setShowPasswordRules(false);
+              }
+            }}
+            secureTextEntry={!showPassword}
+            placeholderTextColor="#999"
+            onFocus={() => setShowPasswordRules(true)}
+          />
+
               <TouchableOpacity
                 style={styles.eyeIcon}
                 onPress={() => setShowPassword(!showPassword)}
@@ -311,6 +342,44 @@ export default function SignUp() {
               </TouchableOpacity>
             </View>
 
+              {/* PASSWORD RULES POPUP */}
+              {showPasswordRules && (
+                <TouchableOpacity
+                  activeOpacity={1}
+                  onPress={() => setShowPasswordRules(false)}
+                  style={[styles.rulesOverlay, { top: passwordY }]}
+                >
+                  <View style={styles.rulesBox}>
+                    {Object.entries(passwordChecks(password)).map(([key, valid]) => (
+                      <View
+                        key={key}
+                        style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}
+                      >
+                        <Ionicons
+                          name={valid ? "checkmark-circle" : "close-circle"}
+                          size={18}
+                          color={valid ? "green" : "red"}
+                        />
+                        <Text
+                          style={{
+                            marginLeft: 6,
+                            color: valid ? "green" : "red",
+                            fontSize: 13,
+                          }}
+                        >
+                          {key === "lower" && "Have at least one lowercase letter"}
+                          {key === "upper" && "Have at least one capital letter"}
+                          {key === "number" && "Have at least one number"}
+                          {key === "symbol" && "Have at least one special symbol"}
+                          {key === "length" && "Be at least 8 characters"}
+                          {key === "noRepeat" &&
+                            "Must not contain more than 2 identical characters"}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              )}
             {/* Confirm Password */}
             <View style={styles.passwordWrapper}>
               <TextInput
@@ -454,4 +523,33 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textAlign: "center",
   },
+rulesOverlay: {
+  position: "absolute",
+  left: 20,
+  right: 20,
+  backgroundColor: "transparent",
+  zIndex: 999,
+  // remove top here because dynamic top is added in JSX
+},
+
+rulesBox: {
+  backgroundColor: "#fff",
+  padding: 15,
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: "#ddd",
+  elevation: 6,
+  shadowColor: "#000",
+  shadowOpacity: 0.15,
+  shadowOffset: { width: 0, height: 3 },
+  shadowRadius: 6,
+},
+
+rulesTitle: {
+  fontWeight: "700",
+  fontSize: 14,
+  marginBottom: 8,
+},
+
 });
+

@@ -29,7 +29,7 @@ export default function DamageReport() {
       image_url,
       date_borrowed,
       date_return,
-    } = params;
+      items = [] } = route.params;
 
   
 
@@ -40,7 +40,7 @@ export default function DamageReport() {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const BASE = "http://192.168.43.118:8000";
+  const BASE = "http://10.147.69.115:8000";
   const SUBMIT_URL = BASE + "/api/damage-report/";
 
 
@@ -89,8 +89,10 @@ export default function DamageReport() {
       formData.append("quantity_affected", quantityAffected);
       formData.append("description", description);
 
-      // REQUIRED TO LINK ITEM + RESERVATION
+      // THE SELECTED ITEM
       formData.append("item_id", item_id);
+
+      // RESERVATION
       formData.append("reservation_id", reservation_id);
 
       formData.append("image", {
@@ -98,6 +100,7 @@ export default function DamageReport() {
         name: "report.jpg",
         type: "image/jpeg",
       });
+
 
       const response = await fetch(SUBMIT_URL, {
     method: "POST",

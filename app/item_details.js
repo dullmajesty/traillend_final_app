@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  Image,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import {View,Text,Image,TextInput,TouchableOpacity,StyleSheet,ScrollView,Alert,ActivityIndicator,} from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Calendar } from "react-native-calendars";
@@ -39,17 +29,20 @@ export default function ItemDetails() {
   const [idPhoto, setIdPhoto] = useState(null);
   const [calendarMap, setCalendarMap] = useState({});
   const [calendarLoading, setCalendarLoading] = useState(false);
+  const [priorityDetail, setPriorityDetail] = useState("");
+  const [otherReason, setOtherReason] = useState("");
+  const [showSuggestedModal, setShowSuggestedModal] = useState(false);
+  const [suggestedItems, setSuggestedItems] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [addedItems, setAddedItems] = useState([]);
 
-  const URGENCY_OPTIONS = [
-    { key: "High", display: "High - For urgent family loss or critical need" },
-    { key: "Medium", display: "Medium - For events, barangay activities, or school programs" },
-    { key: "Low", display: "Low - For normal or general borrowing needs" },
-  ];
+
 
   useEffect(() => {
     const fetchItem = async () => {
       try {
-        const res = await fetch("http://192.168.43.118:8000/api/inventory_list/");
+        const res = await fetch("http://10.147.69.115:8000/api/inventory_list/");
         const data = await res.json();
         const found = data.find((i) => i.item_id === parseInt(id));
         setItem(found);
@@ -62,57 +55,46 @@ export default function ItemDetails() {
     fetchItem();
   }, [id]);
 
- const fetchAvailabilityMap = async () => {
-  try {
-    setCalendarLoading(true);
+  const fetchAvailabilityMap = async () => {
+    try {
+      setCalendarLoading(true);
 
-    //  Fetch the 60-day map directly from backend
-    const res = await fetch(`http://192.168.43.118:8000/api/items/${id}/availability-map/`);
-    const json = await res.json();
+      const res = await fetch(`http://10.147.69.115:8000/api/items/${id}/availability-map/`);
+      const json = await res.json();
 
-    const map = json.calendar || {};
-    setCalendarMap(map);
+      const map = json.calendar || {};
+      setCalendarMap(map);
 
-    const marks = {};
-    Object.entries(map).forEach(([date, info]) => {
-    if (info.status === "blocked") {
-      // Gray for admin-blocked dates
-      marks[date] = {
-        disabled: true,
-        disableTouchEvent: true,
-        customStyles: {
-          container: { backgroundColor: "#d3d3d3" },
-          text: { color: "#555", fontWeight: "bold" },
-        },
-      };
-    } else if (info.status === "fully_reserved") {
-      // Red for fully reserved
-      marks[date] = {
-        disabled: true,
-        disableTouchEvent: true,
-        customStyles: {
-          container: { backgroundColor: "#ffcccc" },
-          text: { color: "#a00", fontWeight: "bold" },
-        },
-      };
-    } else {
-      // Green for available
-      marks[date] = {
-        customStyles: {
-          container: { backgroundColor: "#e6ffe6" },
-          text: { color: "#008000", fontWeight: "600" },
-        },
-      };
+      const marks = {};
+      Object.entries(map).forEach(([date, info]) => {
+        if (info.status === "fully_reserved") {
+          // Red for fully reserved
+          marks[date] = {
+            disabled: true,
+            disableTouchEvent: true,
+            customStyles: {
+              container: { backgroundColor: "#ffcccc" },
+              text: { color: "#a00", fontWeight: "bold" },
+            },
+          };
+        } else {
+          // Green for available
+          marks[date] = {
+            customStyles: {
+              container: { backgroundColor: "#e6ffe6" },
+              text: { color: "#008000", fontWeight: "600" },
+            },
+          };
+        }
+      });
+
+      setMarkedDates(marks);
+    } catch (e) {
+      console.warn("Failed to fetch map:", e);
+    } finally {
+      setCalendarLoading(false);
     }
-  });
-
-    setMarkedDates(marks);
-  } catch (e) {
-    console.warn("Failed to fetch map:", e);
-  } finally {
-    setCalendarLoading(false);
-  }
-};
+  };
 
 
 
@@ -123,7 +105,7 @@ export default function ItemDetails() {
   const fetchAvailability = async (date) => {
     try {
       const res = await fetch(
-        `http://192.168.43.118:8000/api/items/${id}/availability/?date=${date}`
+        `http://10.147.69.115:8000/api/items/${id}/availability/?date=${date}`
       );
       if (!res.ok) return null;
       const data = await res.json();
@@ -177,7 +159,7 @@ export default function ItemDetails() {
         text: "Choose from Gallery",
         onPress: async () => {
           const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: [ImagePicker.MediaType.Image],
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
 
             allowsEditing: true,
             quality: 0.7,
@@ -216,7 +198,7 @@ const preflightAndGoToSummary = async () => {
 
   setChecking(true);
   try {
-    const res = await fetch("http://192.168.43.118:8000/api/reservations/check/", {
+    const res = await fetch("http://10.147.69.115:8000/api/reservations/check/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -235,21 +217,24 @@ const preflightAndGoToSummary = async () => {
       });
 
       setTimeout(() => {
-        router.push({
-          pathname: "/item_reservation_summary",
-          params: {
-            name: item?.name,
-            qty: String(borrowQty),
-            start_date: borrowDate,
-            end_date: returnDate,
-            message,
-            priority,
-            image: item?.image,
-            letterPhoto,
-            idPhoto,
-            itemID: String(item?.item_id),
-          },
-        });
+       router.push({
+        pathname: "/item_reservation_summary",
+        params: {
+          main_item_id: String(item?.item_id),
+          main_item_name: item?.name,
+          main_item_image: item?.image,
+          main_item_qty: String(borrowQty),
+
+          added_items: JSON.stringify(selectedItems),
+
+          start_date: borrowDate,
+          end_date: returnDate,
+          priority,
+          priorityDetail,
+          letterPhoto,
+          idPhoto
+        },
+      });
       }, 800);
     } else if (res.status === 409) {
       const data = await res.json();
@@ -280,6 +265,45 @@ const preflightAndGoToSummary = async () => {
 };
 
 
+const fetchSuggestedItems = async () => {
+  if (!borrowDate || !returnDate) {
+    Toast.show({
+      type: "error",
+      text1: "Select Dates First",
+      text2: "Borrow and return dates are required.",
+    });
+    return;
+  }
+
+  try {
+    setLoadingSuggestions(true);
+
+    const res = await fetch("http://10.147.69.115:8000/api/suggest-items/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        start_date: borrowDate,
+        end_date: returnDate,
+        exclude_item_id: id,
+      }),
+    });
+
+
+
+    const data = await res.json();
+    setSuggestedItems(data.suggestions || []);
+    setShowSuggestedModal(true);
+  } catch (err) {
+    console.log("Suggestion Error:", err);
+    Toast.show({
+      type: "error",
+      text1: "Failed to Load Suggestions",
+      text2: "Try again later.",
+    });
+  } finally {
+    setLoadingSuggestions(false);
+  }
+};
 
   if (loading)
     return (
@@ -288,165 +312,335 @@ const preflightAndGoToSummary = async () => {
       </View>
     );
 
+  if (!item) {
   return (
-    <LinearGradient colors={["#4FC3F7", "#4FC3F7"]} style={{ flex: 1 }}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={22} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Item Details</Text>
+    <View style={styles.centered}>
+      <Text style={{ color: "#fff" }}>Item not found.</Text>
+    </View>
+  );
+}
+
+return (
+  <LinearGradient colors={["#4FC3F7", "#4FC3F7"]} style={{ flex: 1 }}>
+
+    {/* HEADER */}
+    <View style={styles.header}>
+      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <Ionicons name="arrow-back" size={22} color="#fff" />
+      </TouchableOpacity>
+      <Text style={styles.headerTitle}>Reservation</Text>
+    </View>
+
+    {/* ⭐ EVERYTHING SCROLLS TOGETHER (single ScrollView only) */}
+    <ScrollView contentContainerStyle={{ paddingBottom: 45, paddingHorizontal: 20,  }}>
+
+      {/* DATE SELECTION */}
+      <View style={styles.dateRow}>
+        {["borrow", "return"].map((type) => (
+          <TouchableOpacity
+            key={type}
+            style={styles.dateBox}
+            onPress={() => {
+              setSelectingType(type);
+              setShowCalendarModal(true);
+            }}
+          >
+            <Ionicons name="calendar-outline" size={20} color="#555" />
+            <Text style={styles.dateText}>
+              {type === "borrow"
+                ? borrowDate || "Borrow Date"
+                : returnDate || "Return Date"}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.imageWrapper}>
-          <Image
-            source={{ uri: item.image || "https://via.placeholder.com/200" }}
-            style={styles.itemImage}
-          />
+      {availableQty !== null && (
+        <Text style={styles.availableText}>Available: {availableQty} item(s)</Text>
+      )}
+
+      {/* BORROW QTY BAR */}
+      <View style={styles.qtyDisplay}>
+        <Text style={styles.qtyText}>Borrow Qty: {borrowQty || "—"}</Text>
+      </View>
+
+      {/* UPLOAD REQUEST LETTER */}
+      <TouchableOpacity
+        style={styles.uploadCard}
+        onPress={() => pickImage(setLetterPhoto)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="document-text-outline" size={26} color="#1976D2" />
+        <View style={{ marginLeft: 10 }}>
+          <Text style={styles.uploadTitle}>Upload Request Letter</Text>
+          <Text style={styles.uploadHint}>
+            Please upload a short request letter explaining why you need the item.
+          </Text>
         </View>
+      </TouchableOpacity>
 
-        <Text style={styles.itemName}>{item.name}</Text>
-        <Text style={styles.itemOwner}>Owner: {item.owner}</Text>
-        <Text style={styles.itemDesc}>{item.description}</Text>
+      {letterPhoto && <Image source={{ uri: letterPhoto }} style={styles.preview} />}
 
-        {/* Date Selection */}
-        <View style={styles.dateRow}>
-          {["borrow", "return"].map((type) => (
-            <TouchableOpacity
-              key={type}
-              style={styles.dateBox}
-              onPress={() => {
-                setSelectingType(type);
-                setShowCalendarModal(true);
-              }}
-            >
-              <Ionicons name="calendar-outline" size={20} color="#555" />
-              <Text style={styles.dateText}>
-                {type === "borrow" ? borrowDate || "Borrow Date" : returnDate || "Return Date"}
-              </Text>
-            </TouchableOpacity>
-          ))}
+      {/* UPLOAD VALID ID */}
+      <TouchableOpacity
+        style={styles.uploadCard}
+        onPress={() => pickImage(setIdPhoto)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="id-card-outline" size={26} color="#1976D2" />
+        <View style={{ marginLeft: 10 }}>
+          <Text style={styles.uploadTitle}>Upload Valid ID</Text>
+          <Text style={styles.uploadHint}>
+            Accepted IDs:{" "}
+            <Text style={styles.uploadEmphasis}>
+              Government-issued, Student ID, or Birth Certificate
+            </Text>.
+          </Text>
         </View>
+      </TouchableOpacity>
 
-        {availableQty !== null && (
-          <Text style={styles.availableText}>Available: {availableQty} item(s)</Text>
-        )}
+      {idPhoto && <Image source={{ uri: idPhoto }} style={styles.preview} />}
 
-        <View style={styles.qtyDisplay}>
-          <Text style={styles.qtyText}>Borrow Qty: {borrowQty || "—"}</Text>
-        </View>
+      {/* REASON FOR BORROWING */}
+      <Text style={styles.label}>Reason for Borrowing:</Text>
 
-        {/* Upload Buttons */}
-        <View style={styles.uploadSection}>
-          {/* Upload Letter */}
-          <TouchableOpacity
-            style={styles.uploadCard}
-            onPress={() => pickImage(setLetterPhoto)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="document-text-outline" size={26} color="#1976D2" />
-            <View style={{ marginLeft: 10 }}>
-              <Text style={styles.uploadTitle}>Upload Authorization Letter</Text>
-              <Text style={styles.uploadHint}>
-                Must include the <Text style={styles.uploadEmphasis}>signature of the Barangay Captain</Text>.
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          {letterPhoto && <Image source={{ uri: letterPhoto }} style={styles.preview} />}
-
-          {/* Upload Valid ID */}
-          <TouchableOpacity
-            style={styles.uploadCard}
-            onPress={() => pickImage(setIdPhoto)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="id-card-outline" size={26} color="#1976D2" />
-            <View style={{ marginLeft: 10 }}>
-              <Text style={styles.uploadTitle}>Upload Valid ID</Text>
-              <Text style={styles.uploadHint}>
-                Accepted IDs: <Text style={styles.uploadEmphasis}>Government-issued, Student ID, or Birth Certificate</Text>.
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          {idPhoto && <Image source={{ uri: idPhoto }} style={styles.preview} />}
-        </View>
-
-        {/* Priority Pills */}
-        <Text style={styles.label}>Priority:</Text>
-        <View style={styles.priorityRow}>
-          {URGENCY_OPTIONS.map((opt) => (
-            <TouchableOpacity
-              key={opt.key}
-              style={[styles.pill, priority === opt.key && styles.pillSelected]}
-              onPress={() => setPriority(opt.key)}
-            >
-              <Text
-                style={[
-                  styles.pillText,
-                  priority === opt.key && styles.pillTextSelected,
-                ]}
-              >
-                {opt.display}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.label}>Message:</Text>
-        <TextInput
-          style={styles.textArea}
-          multiline
-          placeholder="Write your message"
-          value={message}
-          onChangeText={setMessage}
-        />
-
-        {/* Reserve Button */}
+      <View style={styles.priorityContainer}>
         <TouchableOpacity
-          activeOpacity={0.9}
-          style={styles.reserveBtn}
-          disabled={checking}
+          style={[
+            styles.priorityPill,
+            priorityDetail === "Funeral" && styles.priorityPillSelected,
+          ]}
           onPress={() => {
-              if (!letterPhoto) {
-                Toast.show({
-                  type: "error",
-                  text1: "Authorization Letter Required",
-                  text2: "Please upload your authorization letter.",
-                });
-                return;
-              }
-
-              if (!idPhoto) {
-                Toast.show({
-                  type: "error",
-                  text1: "Valid ID Required",
-                  text2: "Please upload your valid ID.",
-                });
-                return;
-              }
-
-              setShowProceedModal(true);
+            setPriority("High");
+            setPriorityDetail("Funeral");
           }}
         >
-          <LinearGradient
-            colors={["#FFA500", "#FFA500"]}
-            start={[0, 0]}
-            end={[1, 0]}
-            style={styles.reserveGradient}
+          <Text
+            style={[
+              styles.priorityPillText,
+              priorityDetail === "Funeral" && styles.priorityPillTextSelected,
+            ]}
           >
-            {checking ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.reserveText}>Continue</Text>
-            )}
-          </LinearGradient>
+            Funeral
+          </Text>
         </TouchableOpacity>
-      </ScrollView>
 
-      {/* Calendar Modal */}
+        <TouchableOpacity
+          style={[
+            styles.priorityPill,
+            priorityDetail === "Government Activities" &&
+              styles.priorityPillSelected,
+          ]}
+          onPress={() => {
+            setPriority("High");
+            setPriorityDetail("Government Activities");
+          }}
+        >
+          <Text
+            style={[
+              styles.priorityPillText,
+              priorityDetail === "Government Activities" &&
+                styles.priorityPillTextSelected,
+            ]}
+          >
+            Government Activities
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.priorityPill,
+            priorityDetail === "Family Gathering" &&
+              styles.priorityPillSelected,
+          ]}
+          onPress={() => {
+            setPriority("Low");
+            setPriorityDetail("Family Gathering");
+          }}
+        >
+          <Text
+            style={[
+              styles.priorityPillText,
+              priorityDetail === "Family Gathering" &&
+                styles.priorityPillTextSelected,
+            ]}
+          >
+            Family Gathering
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.priorityPill,
+            priorityDetail === "School Events" &&
+              styles.priorityPillSelected,
+          ]}
+          onPress={() => {
+            setPriority("Low");
+            setPriorityDetail("School Events");
+          }}
+        >
+          <Text
+            style={[
+              styles.priorityPillText,
+              priorityDetail === "School Events" &&
+                styles.priorityPillTextSelected,
+            ]}
+          >
+            School Events
+          </Text>
+        </TouchableOpacity>
+
+        {/* OTHERS */}
+        <TouchableOpacity
+          style={[
+            styles.priorityPillFull,
+            priorityDetail === "Others" && styles.priorityPillSelected,
+          ]}
+          onPress={() => {
+            setPriority("Low");
+            setPriorityDetail("Others");
+          }}
+        >
+          <Text
+            style={[
+              styles.priorityPillText,
+              priorityDetail === "Others" && styles.priorityPillTextSelected,
+            ]}
+          >
+            Others (Specify)
+          </Text>
+        </TouchableOpacity>
+
+        {priorityDetail === "Others" && (
+          <TextInput
+            style={styles.otherInput}
+            placeholder="Please specify your reason..."
+            value={otherReason}
+            onChangeText={setOtherReason}
+          />
+        )}
+      </View>
+
+      {/* DIVIDER */}
+      <View style={{ height: 1, backgroundColor: "#1E9CD6", marginVertical: 15 }} />
+
+      <View style={styles.detailsContainer}>
+  <Text style={styles.detailsTitle}>Item Details</Text>
+
+  <View style={styles.detailsBigCard}>
+
+    {/* MAIN ITEM */}
+    <View style={styles.itemRow}>
+      <Image
+        source={{ uri: item?.image }}
+        style={styles.detailsRowImage}
+      />
+
+      <View style={styles.detailsRight}>
+        <Text style={styles.mainItemName}>{item.name}</Text>
+        <Text style={styles.detailsRowOwner}>Owner: {item.owner}</Text>
+        <Text style={styles.detailsRowDesc}>{item.description}</Text>
+
+        <TouchableOpacity
+          style={styles.addItemBtnMain}
+          onPress={fetchSuggestedItems}
+        >
+          <Text style={styles.addItemBtnMainText}>Add Another Item</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+
+    {/* DIVIDER */}
+    {selectedItems.length > 0 && <View style={styles.itemDivider} />}
+
+    {/* ADDED ITEMS */}
+    {selectedItems.map((itm, index) => (
+      <View key={index} style={styles.itemRow}>
+        <Image source={{ uri: itm.image }} style={styles.detailsRowImage} />
+
+        <View style={styles.detailsRight}>
+          <Text style={styles.mainItemName}>{itm.name}</Text>
+          <Text style={styles.detailsRowOwner}>Available: {itm.available_qty}</Text>
+          <Text style={styles.detailsRowDesc}>{itm.description}</Text>
+
+          <View style={styles.actionColumn}>
+            <TextInput
+              placeholder="Qty"
+              keyboardType="numeric"
+              style={styles.qtyInput}
+              onChangeText={(val) => {
+                setSelectedItems(prev => {
+                  const c = [...prev];
+                  c[index].qty = val;
+                  return c;
+                });
+              }}
+            />
+
+            <TouchableOpacity
+              style={styles.removeBtn}
+              onPress={() =>
+                setSelectedItems(prev => prev.filter(p => p.item_id !== itm.item_id))
+              }
+            >
+              <Text style={styles.removeBtnText}>Remove</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    ))}
+
+  </View>
+</View>
+
+
+    
+
+      {/* CONTINUE BUTTON */}
+      <TouchableOpacity
+        activeOpacity={0.9}
+        style={styles.reserveBtn}
+        disabled={checking}
+        onPress={() => {
+          if (!letterPhoto) {
+            Toast.show({
+              type: "error",
+              text1: "Request Letter Required",
+              text2: "Please upload your Request letter.",
+            });
+            return;
+          }
+
+          if (!idPhoto) {
+            Toast.show({
+              type: "error",
+              text1: "Valid ID Required",
+              text2: "Please upload your valid ID.",
+            });
+            return;
+          }
+
+          setShowProceedModal(true);
+        }}
+      >
+        <LinearGradient
+          colors={["#FFA500", "#FFA500"]}
+          start={[0, 0]}
+          end={[1, 0]}
+          style={styles.reserveGradient}
+        >
+          {checking ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.reserveText}>Continue</Text>
+          )}
+        </LinearGradient>
+      </TouchableOpacity>
+
+    </ScrollView>
+
+     {/* Calendar Modal */}
       <Modal
         isVisible={showCalendarModal}
         backdropOpacity={0.4}
@@ -497,16 +691,6 @@ const preflightAndGoToSummary = async () => {
                         text: { color: "#a00", fontWeight: "bold" },
                       }
                     };
-                  } else if (info.status === "blocked") {
-                    newMarks[key] = {
-                      ...markedDates[key],
-                      disabled: true,
-                      disableTouchEvent: true,
-                      customStyles: {
-                        container: { backgroundColor: "#d3d3d3" },
-                        text: { color: "#555", fontWeight: "bold" },
-                      }
-                    };
                   } else {
                     newMarks[key] = {
                       ...markedDates[key],
@@ -542,10 +726,6 @@ const preflightAndGoToSummary = async () => {
                 <View style={styles.legendItem}>
                   <View style={[styles.legendDot, { backgroundColor: "#ffcccc" }]} />
                   <Text style={styles.legendText}>Fully Reserved</Text>
-                </View>
-                <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: "#d3d3d3" }]} />
-                  <Text style={styles.legendText}>Blocked (Admin)</Text>
                 </View>
 
               </View>
@@ -683,11 +863,132 @@ const preflightAndGoToSummary = async () => {
           </View>
         </View>
       </Modal>
-    </LinearGradient>
-  );
-}
 
-// ==================== Styles ====================
+    <Modal
+      isVisible={showSuggestedModal}
+      backdropOpacity={0.4}
+      onBackdropPress={() => setShowSuggestedModal(false)}
+    >
+      <View style={{
+        backgroundColor: "#fff",
+        borderRadius: 20,
+        padding: 18
+      }}>
+        
+        <Text style={{
+          fontSize: 18,
+          fontWeight: "700",
+          color: "#1976D2",
+          textAlign: "center",
+          marginBottom: 10
+        }}>
+          Suggested Items
+        </Text>
+
+        {loadingSuggestions ? (
+          <ActivityIndicator size="large" color="#1976D2" />
+        ) : suggestedItems.length === 0 ? (
+
+          <Text style={{ textAlign: "center", color: "#666", marginVertical: 20 }}>
+            No available suggested items for this date range.
+          </Text>
+
+        ) : (
+          <ScrollView style={{ maxHeight: 350 }}>
+            {suggestedItems.map((item, index) => (
+              <View
+                key={index}
+                style={{
+                  flexDirection: "row",
+                  backgroundColor: "#E3F2FD",
+                  borderRadius: 12,
+                  padding: 12,
+                  marginBottom: 12,
+                  alignItems: "center"
+                }}
+              >
+                <Image
+                  source={{ uri: item.image }}
+                  style={{
+                    width: 70,
+                    height: 70,
+                    borderRadius: 10,
+                    backgroundColor: "#fff",
+                    marginRight: 12
+                  }}
+                />
+
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#0D47A1" }}>
+                    {item.name}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: "#1A237E" }}>
+                    Available: {item.available_qty}
+                  </Text>
+
+                  <TouchableOpacity
+                    style={{
+                      marginTop: 8,
+                      backgroundColor: "#FFC107",
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      borderRadius: 8,
+                      alignSelf: "flex-start"
+                    }}
+                  onPress={() => {
+                    setSelectedItems((prev) => [
+                      ...prev,
+                      {
+                        item_id: item.item_id,
+                        name: item.name,
+                        available_qty: item.available_qty,
+                        image: item.image,
+                        description: item.description,
+                        owner: item.owner,
+                        borrow_qty: "",   
+                      }
+                    ]);
+
+                    setShowSuggestedModal(false);
+
+                    Toast.show({
+                      type: "success",
+                      text1: "Item Added",
+                      text2: `${item.name} was added to your reservation.`,
+                    });
+                  }}
+
+
+                  >
+                    <Text style={{ fontWeight: "700", color: "#000" }}>Select Item</Text>
+                  </TouchableOpacity>
+
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+
+          {/* Close Button */}
+          <TouchableOpacity
+            style={{
+              marginTop: 10,
+              backgroundColor: "#E53935",
+              padding: 12,
+              borderRadius: 12
+            }}
+            onPress={() => setShowSuggestedModal(false)}
+          >
+            <Text style={{ color: "#fff", textAlign: "center", fontWeight: "700" }}>
+              Close
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+  </LinearGradient>
+);
+
+}
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#4FC3F7" },
   header: { flexDirection: "row", alignItems: "center", paddingTop: 50, paddingHorizontal: 16, marginBottom: 10 },
@@ -695,9 +996,11 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 16, paddingBottom: 60 },
   imageWrapper: { alignItems: "center", marginBottom: 10 },
   itemImage: { width: 220, height: 220, borderRadius: 18, backgroundColor: "#fff", elevation: 6 },
+
   itemName: { color: "#fff", fontSize: 22, fontWeight: "bold", marginTop: 8, textAlign: "center" },
   itemOwner: { color: "#E0F7FA", textAlign: "center", marginBottom: 4 },
   itemDesc: { color: "#E0F7FA", marginBottom: 14, textAlign: "center" },
+
   dateRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
   dateBox: {
     flexDirection: "row",
@@ -709,13 +1012,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     elevation: 3,
   },
-  backButton: {
-    backgroundColor: "rgba(255,255,255,0.25)",
-    padding: 8,
-    borderRadius: 8,
-  },
+  backButton: { backgroundColor: "rgba(255,255,255,0.25)", padding: 8, borderRadius: 8 },
   dateText: { color: "#333", fontWeight: "600", marginLeft: 6 },
   availableText: { color: "#fff", textAlign: "center", marginVertical: 6 },
+
   qtyDisplay: {
     backgroundColor: "#FFD55A",
     borderRadius: 10,
@@ -724,67 +1024,54 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   qtyText: { color: "#333", fontWeight: "700" },
-  uploadSection: {
-  marginTop: 10,
-  marginBottom: 20,
-},
 
-uploadCard: {
-  flexDirection: "row",
-  alignItems: "center",
-  backgroundColor: "#fff",
-  borderRadius: 14,
-  borderWidth: 1.5,
-  borderColor: "#1976D2",
-  padding: 14,
-  marginBottom: 12,
-  elevation: 4,
-  shadowColor: "#000",
-  shadowOpacity: 0.1,
-  shadowRadius: 5,
-  shadowOffset: { width: 0, height: 2 },
-},
+  uploadSection: { marginTop: 10, marginBottom: 20 },
 
-uploadTitle: {
-  fontSize: 14,
-  fontWeight: "700",
-  color: "#1976D2",
-  marginBottom: 2,
-},
+  uploadCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#1976D2",
+    padding: 14,
+    marginBottom: 12,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+  },
 
-uploadHint: {
-  fontSize: 12,
-  color: "#555",
-  fontStyle: "italic",
-  lineHeight: 16,
-},
+  uploadTitle: { fontSize: 14, fontWeight: "700", color: "#1976D2", marginBottom: 2 },
+  uploadHint: { fontSize: 12, color: "#555", fontStyle: "italic", lineHeight: 16 },
+  uploadEmphasis: { color: "#E65100", fontWeight: "600" },
 
-uploadEmphasis: {
-  color: "#E65100",
-  fontWeight: "600",
-},
+  preview: {
+    width: "100%",
+    height: 180,
+    borderRadius: 12,
+    marginBottom: 10,
+    marginTop: -2,
+  },
 
-preview: {
-  width: "100%",
-  height: 180,
-  borderRadius: 12,
-  marginBottom: 10,
-  marginTop: -2,
-},
-
-  preview: { width: "100%", height: 180, borderRadius: 12, marginBottom: 10 },
   label: { color: "#fff", fontWeight: "600", marginBottom: 6 },
+
   priorityRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
   pill: { borderWidth: 1, borderColor: "#ddd", backgroundColor: "#fff", borderRadius: 999, paddingVertical: 6, paddingHorizontal: 10 },
   pillSelected: { borderColor: "#FFC107", backgroundColor: "#FFF8E1" },
   pillText: { color: "#333", fontSize: 12, fontWeight: "600" },
   pillTextSelected: { color: "#E65100" },
+
   textArea: { backgroundColor: "#fff", borderRadius: 10, minHeight: 80, padding: 10, marginBottom: 15 },
+
   reserveBtn: { borderRadius: 10, overflow: "hidden", elevation: 5, marginBottom: 20 },
   reserveGradient: { paddingVertical: 16, alignItems: "center" },
   reserveText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+
   modalCard: { backgroundColor: "#fff", borderRadius: 20, padding: 16 },
   modalAvail: { textAlign: "center", fontWeight: "600", marginVertical: 8 },
+
   modalQtyInput: {
     borderWidth: 1,
     borderColor: "#ccc",
@@ -793,103 +1080,211 @@ preview: {
     textAlign: "center",
     marginBottom: 12,
   },
+
   modalBtnRow: { flexDirection: "row", justifyContent: "space-between" },
   modalBtn: { flex: 0.48, borderRadius: 10, padding: 12 },
   modalBtnText: { color: "#fff", textAlign: "center", fontWeight: "600" },
+
   legendRow: { flexDirection: "row", justifyContent: "center", gap: 15, marginTop: 5 },
   legendItem: { flexDirection: "row", alignItems: "center" },
   legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 5 },
   legendText: { fontSize: 13, color: "#333" },
-noticeCard: {
-  backgroundColor: "#fff",
-  borderRadius: 18,
-  padding: 20,
-  elevation: 10,
-  shadowColor: "#000",
-  shadowOpacity: 0.2,
-  shadowRadius: 6,
-  shadowOffset: { width: 0, height: 3 },
-},
 
-noticeHeader: {
-  flexDirection: "row",
+  noticeCard: {
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    padding: 20,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+
+  noticeHeader: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  noticeTitle: { fontSize: 20, fontWeight: "700", color: "#64B5F6", marginLeft: 8 },
+  noticeSubtitle: { fontSize: 13, color: "#555", textAlign: "center", marginBottom: 12, lineHeight: 18 },
+
+  noticeItem: { flexDirection: "row", alignItems: "flex-start", marginBottom: 10 },
+  noticeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#64B5F6", marginRight: 10, marginTop: 6 },
+  noticeHeading: { fontWeight: "700", fontSize: 13.5, color: "#1976D2", marginBottom: 2 },
+  noticeText: { color: "#444", fontSize: 13, lineHeight: 18 },
+
+  noticeBtnRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 15 },
+  noticeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", flex: 0.48, paddingVertical: 10, borderRadius: 10, elevation: 2 },
+  noticeCancelBtn: { backgroundColor: "#eee" },
+  noticeContinueBtn: { backgroundColor: "#64B5F6" },
+  noticeBtnText: { fontWeight: "600", fontSize: 14, marginLeft: 5 },
+
+  priorityGroup: { marginBottom: 12 },
+  priorityHeader: { color: "#fff", fontWeight: "700", marginBottom: 4, marginTop: 10, fontSize: 14 },
+
+  priorityContainer: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 15 },
+
+  priorityPill: {
+    width: "48%",
+    backgroundColor: "#ffffff",
+    borderRadius: 24,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#d8d8d8",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  priorityPillFull: {
+    width: "100%",
+    backgroundColor: "#ffffff",
+    borderRadius: 24,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: "#d8d8d8",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  priorityPillSelected: { backgroundColor: "#FFF8E1", borderColor: "#FFB300" },
+  priorityPillText: { fontSize: 13, fontWeight: "500", color: "#333" },
+  priorityPillTextSelected: { color: "#E65100" },
+
+  otherInput: {
+    width: "100%",
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    marginTop: 8,
+  },
+
+  detailsContainer: {
+  marginTop: 25,
+  marginBottom: 25,
   alignItems: "center",
-  justifyContent: "center",
-  marginBottom: 8,
 },
 
-noticeTitle: {
+detailsTitle: {
+  color: "#fff",
   fontSize: 20,
   fontWeight: "700",
-  color: "#64B5F6",
-  marginLeft: 8,
+  marginBottom: 15,
 },
 
-noticeSubtitle: {
-  fontSize: 13,
-  color: "#555",
-  textAlign: "center",
-  marginBottom: 12,
-  lineHeight: 18,
+/* WHOLE CARD */
+detailsBigCard: {
+  width: "100%",
+  backgroundColor: "#bce2f9",
+  borderRadius: 18,
+  padding: 20,
+  shadowColor: "#000",
+  shadowOpacity: 0.15,
+  shadowRadius: 6,
+  elevation: 6,
 },
 
-noticeItem: {
+/* A SINGLE ROW (main item or added items) */
+itemRow: {
   flexDirection: "row",
   alignItems: "flex-start",
-  marginBottom: 10,
+  marginBottom: 18,
 },
 
-noticeDot: {
-  width: 8,
-  height: 8,
-  borderRadius: 4,
-  backgroundColor: "#64B5F6",
-  marginRight: 10,
-  marginTop: 6,
+/* IMAGE LEFT */
+detailsRowImage: {
+  width: 110,
+  height: 110,
+  borderRadius: 18,
+  backgroundColor: "#fff",
+  marginRight: 15,
 },
 
-noticeHeading: {
+/* TEXT RIGHT SIDE */
+detailsRight: {
+  flex: 1,
+},
+
+mainItemName: {
+  fontSize: 17,
   fontWeight: "700",
-  fontSize: 13.5,
-  color: "#1976D2",
-  marginBottom: 2,
+  color: "#0D47A1",
+  marginBottom: 4,
 },
 
-noticeText: {
-  color: "#444",
+detailsRowOwner: {
+  fontSize: 14,
+  color: "#1A237E",
+  marginBottom: 4,
+},
+
+detailsRowDesc: {
   fontSize: 13,
-  lineHeight: 18,
+  color: "#0D47A1",
+  marginBottom: 10,
+  lineHeight: 17,
 },
 
-noticeBtnRow: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-  marginTop: 15,
+/* Divider between rows */
+itemDivider: {
+  width: "100%",
+  height: 1.4,
+  backgroundColor: "#0D47A1",
+  marginVertical: 10,
+  borderRadius: 999,
 },
 
-noticeBtn: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
-  flex: 0.48,
-  paddingVertical: 10,
+/* MAIN ADD BUTTON (stays at top, never moves) */
+addItemBtnMain: {
+  marginTop: 8,
+  backgroundColor: "#FFC107",
+  paddingVertical: 9,
+  paddingHorizontal: 15,
   borderRadius: 10,
+  alignSelf: "flex-start",
   elevation: 2,
 },
 
-noticeCancelBtn: {
-  backgroundColor: "#eee",
+addItemBtnMainText: {
+  color: "#000",
+  fontWeight: "700",
+  fontSize: 13,
 },
 
-noticeContinueBtn: {
-  backgroundColor: "#64B5F6",
+/* COLUMN: QTY + REMOVE (aligned right) */
+actionColumn: {
+  flexDirection: "column",
+  alignItems: "flex-end",
+  justifyContent: "flex-start",
+  marginTop: 5,
 },
 
-noticeBtnText: {
-  fontWeight: "600",
-  fontSize: 14,
-  marginLeft: 5,
+qtyInput: {
+  backgroundColor: "#fff",
+  borderRadius: 8,
+  borderWidth: 1,
+  borderColor: "#bbb",
+  paddingVertical: 6,
+  paddingHorizontal: 12,
+  width: 75,
+  marginBottom: 6,
 },
+
+removeBtn: {
+  backgroundColor: "#E53935",
+  paddingVertical: 6,
+  paddingHorizontal: 12,
+  borderRadius: 8,
+},
+
+removeBtnText: {
+  color: "#fff",
+  fontWeight: "700",
+},
+
 
 
 });
+

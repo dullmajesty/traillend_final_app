@@ -30,22 +30,24 @@ export default function ReservationStatus() {
 
   useEffect(() => {
     fetchReservations();
+
   }, []);
 
   const fetchReservations = async () => {
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem("accessToken");
+      const token = await AsyncStorage.getItem("access_token");
       if (!token) {
         setError("Session expired. Please log in again.");
         setLoading(false);
         return;
       }
 
-      const res = await fetch("http://192.168.43.118:8000/api/user_reservations/", {
+      const res = await fetch("http://10.147.69.115:8000/api/user_reservations/", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
+      console.log("RESERVATIONS RESPONSE:", JSON.stringify(data, null, 2));
       if (data.success) setReservations(data.reservations);
       else setError("No reservations found.");
     } catch (err) {
@@ -65,7 +67,7 @@ export default function ReservationStatus() {
           try {
             const token = await AsyncStorage.getItem("accessToken");
             const res = await fetch(
-              `http://192.168.43.118:8000/api/reservations/${id}/cancel/`,
+              `http://10.147.69.115:8000/api/reservations/${id}/cancel/`,
               {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
@@ -119,27 +121,59 @@ export default function ReservationStatus() {
     return false;
   });
 
+
   const renderReservation = ({ item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      activeOpacity={0.9}
-      onPress={() => {
-        setSelectedReservation(item);
-        setModalVisible(true);
-      }}
-    >
-      <Image
-        source={
-          item.image_url
-            ? { uri: item.image_url }
-            : require("../../assets/default_item.png")
-        }
-        style={styles.image}
-      />
-      <View style={{ flex: 1, marginLeft: 10 }}>
-        <Text style={styles.itemName}>{item.item_name}</Text>
-        <Text style={styles.detail}>Borrowed: {item.date_borrowed || "—"}</Text>
-        <Text style={styles.detail}>Return: {item.date_return || "—"}</Text>
+  <TouchableOpacity
+    style={styles.card}
+    activeOpacity={0.9}
+    onPress={() => {
+      setSelectedReservation(item);
+      setModalVisible(true);
+      console.log("ITEM:", item);
+
+    }}
+  >
+    <View style={{ flexDirection: "row", width: "100%" }}>
+      
+      {/* IMAGE */}
+      {item.items && item.items.length > 0 ? (
+        <Image source={{ uri: item.items[0].image_url }} style={styles.image} />
+      ) : (
+        <Image
+          source={require("../../assets/default_item.png")}
+          style={styles.image}
+        />
+      )}
+
+      {/* RIGHT SIDE TEXT */}
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        
+        {/* NAME */}
+        <Text style={styles.itemName}>
+          {item.items?.length > 0 ? item.items[0].name : "No Item"}
+        </Text>
+
+        {/* QTY */}
+        <Text style={styles.detail}>
+          Qty: {item.items?.length > 0 ? item.items[0].quantity : 0}
+        </Text>
+
+        {/* + more items */}
+        {item.items?.length > 1 && (
+          <Text style={{ fontSize: 12, color: "#1E88E5", marginTop: 2 }}>
+            +{item.items.length - 1} more items
+          </Text>
+        )}
+
+        {/* DATES */}
+        <Text style={styles.detail}>
+          Borrowed: {item.date_borrowed || "—"}
+        </Text>
+        <Text style={styles.detail}>
+          Return: {item.date_return || "—"}
+        </Text>
+
+        {/* STATUS */}
         <View
           style={[
             styles.statusPill,
@@ -151,10 +185,19 @@ export default function ReservationStatus() {
           </Text>
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={20} color="#888" />
-    </TouchableOpacity>
-  );
+    </View>
 
+    {/* Arrow */}
+    <Ionicons
+      name="chevron-forward"
+      size={20}
+      color="#888"
+      style={{ position: "absolute", right: 12, top: 12 }}
+    />
+  </TouchableOpacity>
+);
+
+  
   return (
     <LinearGradient colors={["#4FC3F7", "#1E88E5"]} style={styles.container}>
       {/* Filter Buttons */}
@@ -201,76 +244,106 @@ export default function ReservationStatus() {
       </View>
 
       {/* MODAL */}
-      <Modal visible={modalVisible} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            {selectedReservation && (
-              <>
-                <Ionicons
-                  name="information-circle-outline"
-                  size={30}
-                  color="#1E88E5"
-                />
-                <Text style={styles.modalTitle}>
-                  {selectedReservation.item_name}
-                </Text>
-
-                {selectedReservation.image_url && (
-                  <Image
-                    source={{ uri: selectedReservation.image_url }}
-                    style={styles.modalImage}
+        <Modal visible={modalVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              {selectedReservation && (
+                <>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={30}
+                    color="#ffffffff"
                   />
-                )}
 
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalDetail}>
-                    <Text style={styles.bold}>Borrowed:</Text>{" "}
-                    {selectedReservation.date_borrowed || "—"}
+                  <Text style={styles.modalTitle}>
+                    {selectedReservation.items?.length > 1
+                      ? "Multiple Items"
+                      : selectedReservation.items?.length === 1
+                      ? selectedReservation.items[0].name
+                      : "No Item"}
                   </Text>
-                  <Text style={styles.modalDetail}>
-                    <Text style={styles.bold}>Return:</Text>{" "}
-                    {selectedReservation.date_return || "—"}
-                  </Text>
-                  <Text style={styles.modalDetail}>
-                    <Text style={styles.bold}>Quantity:</Text>{" "}
-                    {selectedReservation.quantity}
-                  </Text>
-                  <Text style={styles.modalDetail}>
-                    <Text style={styles.bold}>Status:</Text>{" "}
-                    <Text
-                      style={{
-                        color: getStatusColor(selectedReservation.status),
-                      }}
-                    >
-                      {selectedReservation.status.toUpperCase()}
-                    </Text>
-                  </Text>
-                  <Text style={styles.modalDetail}>
-                    <Text style={styles.bold}>Message:</Text>{" "}
-                    {selectedReservation.message || "N/A"}
-                  </Text>
+
+
+                  {/* 🔹 SHOW ALL ITEMS */}
+                 <View style={{ width: "100%", marginBottom: 10 }}>
+                  {selectedReservation.items?.map((it, index) => (
+                    <View key={index} style={styles.itemRow}>
+                      <Image
+                        source={
+                          it.image_url ? { uri: it.image_url } : require("../../assets/default_item.png")
+                        }
+                        style={{
+                          width: 65,
+                          height: 65,
+                          borderRadius: 10,
+                          marginRight: 10,
+                        }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: "700", color: "#0e0c0cff" }}>
+                          {it.name}
+                        </Text>
+                        <Text style={{ fontSize: 13, color: "#140c0cff" }}>
+                          Qty: {it.quantity}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
                 </View>
 
-                {selectedReservation.status === "pending" && (
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={() => cancelReservation(selectedReservation.id)}
-                  >
-                    <Text style={styles.cancelText}>Cancel Reservation</Text>
-                  </TouchableOpacity>
-                )}
+                  {/* 🔹 DETAILS */}
+                  <View style={styles.modalContent}>
+                    <Text style={styles.modalDetail}>
+                      <Text style={styles.bold}>Borrowed:</Text>{" "}
+                      {selectedReservation.date_borrowed || "—"}
+                    </Text>
 
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={() => setModalVisible(false)}
-                >
-                  <Text style={styles.closeText}>Close</Text>
-                </TouchableOpacity>
-              </>
-            )}
+                    <Text style={styles.modalDetail}>
+                      <Text style={styles.bold}>Return:</Text>{" "}
+                      {selectedReservation.date_return || "—"}
+                    </Text>
+
+                    <Text style={styles.modalDetail}>
+                      <Text style={styles.bold}>Status:</Text>{" "}
+                      <Text
+                        style={{
+                          color: getStatusColor(selectedReservation.status),
+                        }}
+                      >
+                        {selectedReservation.status.toUpperCase()}
+                      </Text>
+                    </Text>
+
+                    {/* 🔹 FIXED: Reason for Borrowing */}
+                    <Text style={styles.modalDetail}>
+                    <Text style={styles.bold}>Priority:</Text>{" "}
+                    {selectedReservation.priority || "N/A"}
+                  </Text>
+
+                  </View>
+
+                  {/* Cancel Button */}
+                  {selectedReservation.status === "pending" && (
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => cancelReservation(selectedReservation.id)}
+                    >
+                      <Text style={styles.cancelText}>Cancel Reservation</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => setModalVisible(false)}
+                  >
+                    <Text style={styles.closeText}>Close</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+
     </LinearGradient>
   );
 }
@@ -352,7 +425,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "#4FC3F7",
     borderRadius: 16,
     padding: 20,
     alignItems: "center",
@@ -362,10 +435,19 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#1E88E5",
+    color: "#343232ff",
     marginTop: 8,
     marginBottom: 10,
   },
+  itemRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  marginBottom: 10,
+  backgroundColor: "rgba(255,255,255,0.1)", 
+  padding: 10,
+  borderRadius: 10,
+},
+
   modalImage: {
     width: width * 0.6,
     height: width * 0.6,
@@ -374,11 +456,12 @@ const styles = StyleSheet.create({
   },
   modalContent: { width: "100%", marginBottom: 10 },
   modalDetail: {
-    fontSize: 14,
-    color: "#333",
-    marginVertical: 2,
-  },
-  bold: { fontWeight: "600", color: "#000" },
+  fontSize: 14,
+  color: "#ffffff",
+  marginVertical: 2,
+},
+  bold: { fontWeight: "600", color: "#ffffff" },
+
   cancelButton: {
     backgroundColor: "#E53935",
     borderRadius: 8,

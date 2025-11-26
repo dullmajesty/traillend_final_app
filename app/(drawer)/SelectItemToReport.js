@@ -7,7 +7,7 @@ export default function SelectItemToReport() {
   const navigation = useNavigation();
   const [items, setItems] = useState([]);
 
-  const BASE = "http://192.168.43.118:8000";
+  const BASE = "http://10.147.69.115:8000";
   const IN_USE_URL = BASE + "/api/in-use-items/";
 
   useEffect(() => {
@@ -52,33 +52,39 @@ export default function SelectItemToReport() {
       {items.length === 0 ? (
         <Text style={{ color: "#888" }}>You have no borrowed items currently in use.</Text>
       ) : (
-        items.map((item) => (
-          <TouchableOpacity
-            key={item.reservation_id}
-            style={styles.card}
-            onPress={() =>
-              navigation.navigate("Report_Damage", {
-                reservation_id: item.reservation_id,
-                item_id: item.item_id,
-                item_name: item.item_name,
-                quantity: item.quantity,
-                image_url: item.image,
-                date_borrowed: item.date_borrowed,
-                date_return: item.date_return,
-              })
-            }
-          >
-            <Image source={{ uri: item.image }} style={styles.img} />
-
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{item.item_name}</Text>
-              <Text style={styles.details}>Qty: {item.quantity}</Text>
-              <Text style={styles.details}>
-                {item.date_borrowed} → {item.date_return}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))
+        items
+          .flatMap(res => (res.items || []).map(it => ({
+            ...it,
+            reservation_id: res.reservation_id,
+            date_borrowed: res.date_borrowed,
+            date_return: res.date_return
+          })))
+          .map(item => (
+            <TouchableOpacity
+              key={`${item.reservation_id}-${item.item_id}`}
+              style={styles.card}
+              onPress={() =>
+                navigation.navigate("Report_Damage", {
+                  reservation_id: item.reservation_id,
+                  item_id: item.item_id,
+                  item_name: item.item_name,
+                  quantity: item.quantity,
+                  image_url: item.image,
+                  date_borrowed: item.date_borrowed,
+                  date_return: item.date_return,
+                })
+              }
+            >
+              <Image source={{ uri: item.image }} style={styles.img} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.name}>{item.item_name}</Text>
+                <Text style={styles.details}>Qty: {item.quantity}</Text>
+                <Text style={styles.details}>
+                  {item.date_borrowed} → {item.date_return}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))
       )}
     </ScrollView>
   );
