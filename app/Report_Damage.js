@@ -40,7 +40,7 @@ export default function DamageReport() {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const BASE = "http://10.147.69.115:8000";
+  const BASE = "http://10.178.207.115:8000";
   const SUBMIT_URL = BASE + "/api/damage-report/";
 
 

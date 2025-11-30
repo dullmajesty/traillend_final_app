@@ -7,7 +7,7 @@ export default function SelectItemToReport() {
   const navigation = useNavigation();
   const [items, setItems] = useState([]);
 
-  const BASE = "http://10.147.69.115:8000";
+  const BASE = "http://10.178.207.115:8000";
   const IN_USE_URL = BASE + "/api/in-use-items/";
 
   useEffect(() => {

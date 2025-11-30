@@ -49,7 +49,7 @@ function Notifications() {
 
     
     await axios.patch(
-      "http://10.147.69.115:8000/api/notifications/mark_all_read/",
+      "http://10.178.207.115:8000/api/notifications/mark_all_read/",
       {},
       { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -134,7 +134,7 @@ function Notifications() {
           
           const token = await AsyncStorage.getItem("access_token");
 
-          await axios.delete(`http://10.147.69.115:8000/api/notifications/delete/${id}/`, {
+          await axios.delete(`http://10.178.207.115:8000/api/notifications/delete/${id}/`, {
             headers: { Authorization: `Bearer ${token}` },
           });
 
@@ -164,7 +164,7 @@ function Notifications() {
     case "claimed": iconName = "hand-left-outline"; iconColor = "#42A5F5"; break;
     case "returned": iconName = "repeat-outline"; iconColor = "#9C27B0"; break;
     case "pending": iconName = "time-outline"; iconColor = "#FFB300"; break;
-    case "rejection": iconName = "alert-circle-outline"; iconColor = "#E53935"; break;
+    case "declined": iconName = "alert-circle-outline"; iconColor = "#E53935"; break;
     case "delayed": iconName = "alert-outline"; iconColor = "#FF7043"; break;
     case "return_reminder": iconName = "alert-circle-outline"; iconColor = "#FF9800"; break;
   }
@@ -264,7 +264,7 @@ function Notifications() {
                 styles.statusBanner,
                 selectedNotif?.type === "approval"
                   ? { backgroundColor: "#C8E6C9" }
-                  : selectedNotif?.type === "rejection"
+                  : selectedNotif?.type === "declined"
                   ? { backgroundColor: "#FFCDD2" }
                   : selectedNotif?.type === "pending"
                   ? { backgroundColor: "#FFE082" }
@@ -283,7 +283,7 @@ function Notifications() {
                 name={
                   selectedNotif?.type === "approval"
                     ? "checkmark-circle-outline"
-                    : selectedNotif?.type === "rejection"
+                    : selectedNotif?.type === "declined"
                     ? "alert-circle-outline"
                     : selectedNotif?.type === "pending"
                     ? "time-outline"
@@ -305,7 +305,7 @@ function Notifications() {
                 color={
                   selectedNotif?.type === "approval"
                     ? "#43A047"
-                    : selectedNotif?.type === "rejection"
+                    : selectedNotif?.type === "declined"
                     ? "#E53935"
                     : selectedNotif?.type === "pending"
                     ? "#FB8C00"
@@ -327,7 +327,7 @@ function Notifications() {
               <Text style={styles.bannerText}>
                 {selectedNotif?.type === "approval"
                   ? "Approved"
-                  : selectedNotif?.type === "rejection"
+                  : selectedNotif?.type === "declined"
                   ? "Declined"
                   : selectedNotif?.type === "pending"
                   ? "Pending"
@@ -356,7 +356,7 @@ function Notifications() {
                       ? "alert-circle-outline" // ⚠️ header icon
                       : selectedNotif?.type === "approval"
                       ? "document-text-outline"
-                      : selectedNotif?.type === "rejection"
+                      : selectedNotif?.type === "declined"
                       ? "alert-circle-outline"
                       : selectedNotif?.type === "pending"
                       ? "hourglass-outline"
@@ -573,7 +573,7 @@ function Notifications() {
                 </Text>
               )}
 
-              {selectedNotif?.type === "rejection" && (
+              {selectedNotif?.type === "declined" && (
                 <>
                   <Text style={styles.messageText}>
                     Your reservation for this item was declined.

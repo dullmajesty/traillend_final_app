@@ -42,7 +42,7 @@ export default function ItemDetails() {
   useEffect(() => {
     const fetchItem = async () => {
       try {
-        const res = await fetch("http://10.147.69.115:8000/api/inventory_list/");
+        const res = await fetch("http://10.178.207.115:8000/api/inventory_list/");
         const data = await res.json();
         const found = data.find((i) => i.item_id === parseInt(id));
         setItem(found);
@@ -59,7 +59,7 @@ export default function ItemDetails() {
     try {
       setCalendarLoading(true);
 
-      const res = await fetch(`http://10.147.69.115:8000/api/items/${id}/availability-map/`);
+      const res = await fetch(`http://10.178.207.115:8000/api/items/${id}/availability-map/`);
       const json = await res.json();
 
       const map = json.calendar || {};
@@ -105,7 +105,7 @@ export default function ItemDetails() {
   const fetchAvailability = async (date) => {
     try {
       const res = await fetch(
-        `http://10.147.69.115:8000/api/items/${id}/availability/?date=${date}`
+        `http://10.178.207.115:8000/api/items/${id}/availability/?date=${date}`
       );
       if (!res.ok) return null;
       const data = await res.json();
@@ -198,7 +198,7 @@ const preflightAndGoToSummary = async () => {
 
   setChecking(true);
   try {
-    const res = await fetch("http://10.147.69.115:8000/api/reservations/check/", {
+    const res = await fetch("http://10.178.207.115:8000/api/reservations/check/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -278,7 +278,7 @@ const fetchSuggestedItems = async () => {
   try {
     setLoadingSuggestions(true);
 
-    const res = await fetch("http://10.147.69.115:8000/api/suggest-items/", {
+    const res = await fetch("http://10.178.207.115:8000/api/suggest-items/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

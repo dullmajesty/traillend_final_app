@@ -43,7 +43,7 @@ export default function ReservationStatus() {
         return;
       }
 
-      const res = await fetch("http://10.147.69.115:8000/api/user_reservations/", {
+      const res = await fetch("http://10.178.207.115:8000/api/user_reservations/", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -67,7 +67,7 @@ export default function ReservationStatus() {
           try {
             const token = await AsyncStorage.getItem("accessToken");
             const res = await fetch(
-              `http://10.147.69.115:8000/api/reservations/${id}/cancel/`,
+              `http://10.178.207.115:8000/api/reservations/${id}/cancel/`,
               {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
@@ -99,7 +99,7 @@ export default function ReservationStatus() {
         return "#4CAF50";
       case "in use":
         return "#2196F3"; // blue tone for active usage
-      case "rejected":
+      case "declined":
         return "#E53935";
       case "cancelled":
         return "#757575";
@@ -117,7 +117,7 @@ export default function ReservationStatus() {
     if (selectedFilter === "In Use") return r.status === "in use";
     if (selectedFilter === "Past") return r.status === "returned";
     if (selectedFilter === "Cancelled")
-      return r.status === "cancelled" || r.status === "rejected";
+      return r.status === "Cancelled" || r.status === "declined";
     return false;
   });
 

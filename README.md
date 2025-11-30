@@ -10,7 +10,7 @@ Through the app, users can:
 
 View the list of available barangay equipment such as tents, chairs, and sound systems.
 Submit reservation requests by selecting an item, quantity, and desired borrowing date.
-Receive instant notifications when their reservation is approved, declined, or due for return.
+Receive instant notifications when their reservation is approved, cancelled, or due for return.
 Scan or present their QR code for verification using the ESP32-CAM module at the barangay office.
 Report damaged or missing items with attached images for faster action.
 The app also features a responsive and user-friendly interface that matches the clean, professional style of the web dashboard — making it intuitive even for first-time users.

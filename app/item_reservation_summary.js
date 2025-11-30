@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
-  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -31,21 +30,21 @@ export default function ReservationSummary() {
 
   const start_date = params.start_date;
   const end_date = params.end_date;
-
-  // ⭐ NEW — REAL Reason
   const reason = params.priorityDetail || "N/A";
 
   const letterPhoto = params.letterPhoto;
   const idPhoto = params.idPhoto;
 
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [letterPreview, setLetterPreview] = useState(false);
-  const [idPreview, setIdPreview] = useState(false);
   const [suggestModal, setSuggestModal] = useState(false);
   const [showRanges, setShowRanges] = useState(false);
-  const [suggestedRanges, setSuggestedRanges] = useState([]);
 
-  // SUBMIT RESERVATION ==================================================
+  const [suggestedRanges, setSuggestedRanges] = useState([]);
+  const [unavailableItems, setUnavailableItems] = useState([]);
+
+  /* ===============================================================
+     SUBMIT HANDLER
+  =============================================================== */
   const handleConfirm = async () => {
     if (!acceptTerms) {
       Toast.show({
@@ -61,12 +60,9 @@ export default function ReservationSummary() {
       const contactNumber = (await AsyncStorage.getItem("contactNumber")) || "";
 
       const form = new FormData();
-
-      // Main Item
       form.append("main_item_id", mainItem.id);
       form.append("main_item_qty", mainItem.qty);
 
-      // Added Items
       form.append(
         "added_items",
         JSON.stringify(
@@ -79,11 +75,8 @@ export default function ReservationSummary() {
 
       form.append("start_date", start_date);
       form.append("end_date", end_date);
-
-      // Priority fields
       form.append("priority", params.priority);
       form.append("priority_detail", params.priorityDetail);
-
       form.append("message", reason);
       form.append("contact", contactNumber);
 
@@ -102,36 +95,37 @@ export default function ReservationSummary() {
         });
       }
 
-      // Show loading (allowed)
       Toast.show({
         type: "info",
-        text1: "Submitting Request",
+        text1: "Submitting...",
         text2: "Please wait...",
       });
 
-      const res = await fetch("http://10.147.69.115:8000/api/create_reservation/", {
+      const res = await fetch("http://10.178.207.115:8000/api/create_reservation/", {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}` },
         body: form,
       });
 
-      const raw = await res.text();
-      let data = null;
-      try {
-        data = JSON.parse(raw);
-      } catch {}
+       const data = await res.json().catch(() => ({}));
 
-      // ⭐⭐⭐ IF FULLY RESERVED → SHOW MODAL, NOT TOAST ⭐⭐⭐
-      if (res.status === 409 && data?.suggest_next === true) {
-        Toast.hide(); // remove loading toast instantly
+      /* ==========================================================
+         CASE 409 — SHOW SUGGESTION MODAL
+      ========================================================== */
+      if (res.status === 409) {
+        Toast.hide();
 
-        setSuggestedRanges(data.suggested_ranges);
-        setSuggestModal(true);  // show modal
-        setShowRanges(false);   // reset range view
-        return;                 // STOP HERE - do not show toast
+        setUnavailableItems(data.unavailable_items || []);
+        setSuggestedRanges(data.suggested_ranges || []);
+        setSuggestModal(true);
+        setShowRanges(false);
+
+        return;
       }
 
-      // ⭐ SUCCESS
+      /* ==========================================================
+         CASE 201 — SUCCESS
+      ========================================================== */
       if (res.status === 201) {
         Toast.show({
           type: "success",
@@ -144,37 +138,42 @@ export default function ReservationSummary() {
             pathname: "/item_reservation_receipt",
             params: {
               transactionId: data.transaction_id,
-              start_date: start_date,
-              end_date: end_date,
+              start_date,
+              end_date,
               main_item_name: mainItem.name,
               main_item_qty: String(mainItem.qty),
               added_items_json: JSON.stringify(addedItems),
             },
           });
-        }, 900);
+        }, 800);
+
         return;
       }
 
-      // ⭐ GENERIC ERROR (not suggested dates)
+      /* ==========================================================
+         OTHER ERRORS
+      ========================================================== */
       Toast.show({
         type: "error",
         text1: "Reservation Failed",
         text2: data?.detail || "Something went wrong.",
       });
-
     } catch (err) {
+      console.log("NETWORK ERROR:", err);
       Toast.show({
         type: "error",
         text1: "Network Error",
-        text2: "Please check your internet connection.",
+        text2: "Please check your connection.",
       });
     }
   };
 
-
+  /* ===============================================================
+     RENDER UI
+  =============================================================== */
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={22} color="#fff" />
@@ -182,53 +181,41 @@ export default function ReservationSummary() {
         <Text style={styles.headerTitle}>Reservation Summary</Text>
       </View>
 
-      <ScrollView
-        style={{ marginTop: 100 }}
-        contentContainerStyle={{ padding: 20 }}
-      >
-        {/* Status */}
+      <ScrollView style={{ marginTop: 100 }} contentContainerStyle={{ padding: 20 }}>
+        {/* INFO BOX */}
         <View style={styles.pendingBox}>
           <Ionicons name="information-circle" size={22} color="#FFA500" />
           <Text style={styles.pendingText}>
-            This reservation is <Text style={{ fontWeight: "bold" }}>pending</Text>{" "}
-            and requires admin approval.
+            This reservation is pending and requires admin approval.
           </Text>
         </View>
 
-        {/* ITEMS CARD */}
+        {/* ITEMS LIST */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Items Reserved</Text>
 
-          {/* Main Item */}
+          {/* MAIN ITEM */}
           <View style={styles.itemSummaryRow}>
-            <Image
-              source={{ uri: mainItem.image }}
-              style={styles.itemSummaryImg}
-            />
+            <Image source={{ uri: mainItem.image }} style={styles.itemSummaryImg} />
             <View style={{ flex: 1 }}>
               <Text style={styles.itemSummaryName}>{mainItem.name}</Text>
               <Text style={styles.itemSummaryQty}>Qty: {mainItem.qty}</Text>
             </View>
           </View>
 
-          {/* Added Items */}
-          {addedItems.length > 0 &&
-            addedItems.map((itm, index) => (
-              <View key={index} style={styles.itemSummaryRow}>
-                <Image
-                  source={{ uri: itm.image }}
-                  style={styles.itemSummaryImg}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemSummaryName}>{itm.name}</Text>
-                  <Text style={styles.itemSummaryQty}>Qty: {itm.qty || "0"}</Text>
-                </View>
+          {/* ADDED ITEMS */}
+          {addedItems.map((itm, idx) => (
+            <View key={idx} style={styles.itemSummaryRow}>
+              <Image source={{ uri: itm.image }} style={styles.itemSummaryImg} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.itemSummaryName}>{itm.name}</Text>
+                <Text style={styles.itemSummaryQty}>Qty: {itm.qty}</Text>
               </View>
-            ))}
+            </View>
+          ))}
         </View>
 
-
-        {/* RESERVATION DETAILS */}
+        {/* DETAILS */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Reservation Details</Text>
 
@@ -254,20 +241,14 @@ export default function ReservationSummary() {
 
           <View style={styles.docsRow}>
             {!!letterPhoto && (
-              <TouchableOpacity
-                style={styles.docItem}
-                onPress={() => setLetterPreview(true)}
-              >
+              <TouchableOpacity style={styles.docItem}>
                 <Image source={{ uri: letterPhoto }} style={styles.docImage} />
                 <Text style={styles.imageLabel}>Request Letter</Text>
               </TouchableOpacity>
             )}
 
             {!!idPhoto && (
-              <TouchableOpacity
-                style={styles.docItem}
-                onPress={() => setIdPreview(true)}
-              >
+              <TouchableOpacity style={styles.docItem}>
                 <Image source={{ uri: idPhoto }} style={styles.docImage} />
                 <Text style={styles.imageLabel}>Valid ID</Text>
               </TouchableOpacity>
@@ -287,9 +268,7 @@ export default function ReservationSummary() {
                 color="#FFA500"
               />
             </TouchableOpacity>
-            <Text style={styles.checkboxText}>
-              I agree to the Terms & Conditions
-            </Text>
+            <Text style={styles.checkboxText}>I agree to the Terms & Conditions</Text>
           </View>
 
           <TouchableOpacity
@@ -305,109 +284,106 @@ export default function ReservationSummary() {
         </View>
       </ScrollView>
 
-      {/* LETTER PREVIEW */}
-      <Modal visible={letterPreview} transparent>
-        <View style={styles.modalOverlay}>
-          <Image source={{ uri: letterPhoto }} style={styles.fullImage} />
-          <TouchableOpacity
-            onPress={() => setLetterPreview(false)}
-            style={styles.closeIcon}
-          >
-            <Ionicons name="close-circle" size={35} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
-      {/* ID PREVIEW */}
-      <Modal visible={idPreview} transparent>
-        <View style={styles.modalOverlay}>
-          <Image source={{ uri: idPhoto }} style={styles.fullImage} />
-          <TouchableOpacity
-            onPress={() => setIdPreview(false)}
-            style={styles.closeIcon}
-          >
-            <Ionicons name="close-circle" size={35} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </Modal>
-      
-      {/* 🔵 SUGGESTION MODAL */}
+      {/* =======================================================
+            SUGGESTION MODAL
+      ======================================================= */}
       <Modal visible={suggestModal} transparent animationType="fade">
         <View style={styles.suggestOverlay}>
           <View style={styles.suggestBox}>
+            <Text style={styles.suggestTitle}>Item Not Available</Text>
 
-            {!showRanges ? (
+            <Text style={styles.suggestMessage}>
+              Some items are unavailable for your selected dates.
+            </Text>
+
+            {!showRanges && (
               <>
-                <Text style={styles.suggestTitle}>Item Fully Reserved</Text>
+                <Text style={styles.suggestSubtitle}>Suggested Date Range:</Text>
 
-                <Text style={styles.suggestMessage}>
-                  This item is fully reserved on your selected dates.{"\n"}
-                  Would you like to see available date ranges with the same duration?
-                </Text>
+                <TouchableOpacity
+                  style={styles.dateBox}
+                  onPress={() => setShowRanges(true)}
+                >
+                  <Text style={styles.dateText}>
+                    {suggestedRanges.length > 0
+                      ? `${suggestedRanges[0].start} → ${suggestedRanges[0].end}`
+                      : "No alternative dates found"}
+                  </Text>
+                </TouchableOpacity>
 
+                {/* ACTIONS */}
                 <View style={styles.suggestButtons}>
                   <TouchableOpacity
-                    style={[styles.suggestBtn, { backgroundColor: "#4FC3F7" }]}
-                    onPress={() => setShowRanges(true)}
-                  >
-                    <Text style={styles.suggestBtnText}>Yes</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.suggestBtn, { backgroundColor: "#bbb" }]}
+                    style={[styles.actionBtn, { backgroundColor: "green" }]}
                     onPress={() => {
                       setSuggestModal(false);
-                      router.push("/dashboard");
-                    }}
-                  >
-                    <Text style={styles.suggestBtnText}>No</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            ) : (
-              <>
-                <Text style={styles.suggestTitle}>Available Date Ranges</Text>
+                      const best = suggestedRanges[0];
 
-                {suggestedRanges.map((r, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={styles.rangeItem}
-                    onPress={() => {
-                      setSuggestModal(false);
-                      router.push({
-                        pathname: "/item_details",
+                      router.replace({
+                        pathname: "/item_reservation_summary",
                         params: {
-                          id: mainItem.id,
-                          start_date: r.start,
-                          end_date: r.end,
+                          main_item_id: mainItem.id,
+                          main_item_name: mainItem.name,
+                          main_item_qty: mainItem.qty,
+                          main_item_image: mainItem.image,
+                          added_items: JSON.stringify(addedItems),
+                          start_date: best.start,
+                          end_date: best.end,
+                          priority: params.priority,
+                          priorityDetail: params.priorityDetail,
+                          letterPhoto,
+                          idPhoto,
                         },
                       });
                     }}
                   >
-                    <Ionicons name="calendar" size={20} color="#4FC3F7" />
-                    <Text style={styles.rangeText}>
-                      {r.start} → {r.end}
-                    </Text>
+                    <Text style={styles.actionText}>Accept</Text>
                   </TouchableOpacity>
-                ))}
+
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: "red" }]}
+                    onPress={() => {
+                      setSuggestModal(false);
+                      router.replace("/dashboard");
+                    }}
+                  >
+                    <Text style={styles.actionText}>Decline</Text>
+                  </TouchableOpacity>
+                </View>
 
                 <TouchableOpacity
-                  style={[styles.suggestBtn, { backgroundColor: "#bbb", marginTop: 15 }]}
-                  onPress={() => setSuggestModal(false)}
+                  style={styles.browseBtn}
+                  onPress={() => {
+                    setSuggestModal(false);
+                    router.replace({
+                      pathname: "/item_details",
+                      params: {
+                        id: mainItem.id,
+                        added_items: JSON.stringify(addedItems),
+                        start_date,
+                        end_date,
+                        priority: params.priority,
+                        priorityDetail: params.priorityDetail,
+                        letterPhoto,
+                        idPhoto,
+                      },
+                    });
+                  }}
                 >
-                  <Text style={styles.suggestBtnText}>Close</Text>
+                  <Text style={styles.browseText}>Browse Other Slots</Text>
                 </TouchableOpacity>
               </>
             )}
           </View>
         </View>
       </Modal>
-
-
     </View>
   );
 }
 
+/* ===============================================================
+   STYLES
+=============================================================== */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#4FC3F7" },
 
@@ -463,27 +439,28 @@ const styles = StyleSheet.create({
   },
 
   docsRow: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-  marginTop: 10,
-},
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
 
-docItem: {
-  width: "48%",
-  alignItems: "center",
-  backgroundColor: "#ffffff55",
-  borderRadius: 12,
-  padding: 10,
-},
+  docItem: {
+    width: "48%",
+    alignItems: "center",
+    backgroundColor: "#ffffff55",
+    borderRadius: 12,
+    padding: 10,
+  },
 
-docImage: {
-  width: "100%",
-  height: 130,
-  borderRadius: 10,
-  backgroundColor: "#fff",
-  marginBottom: 6,
-},
+  docImage: {
+    width: "100%",
+    height: 130,
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    marginBottom: 6,
+  },
 
+  imageLabel: { marginTop: 5, fontWeight: "700", color: "#000" },
 
   sectionTitle: {
     color: "#0d0d0dff",
@@ -498,14 +475,8 @@ docImage: {
     marginBottom: 10,
   },
 
-  label: { color: "#060606ff", fontSize: 13, width: "45%" },
-  value: {
-    color: "#060606ff",
-    fontWeight: "600",
-    fontSize: 14,
-    textAlign: "right",
-    flex: 1,
-  },
+  label: { color: "#060606ff", fontSize: 13 },
+  value: { color: "#060606ff", fontWeight: "600", fontSize: 14 },
 
   itemSummaryRow: {
     flexDirection: "row",
@@ -529,86 +500,14 @@ docImage: {
     fontWeight: "700",
     color: "#000",
   },
-  suggestOverlay: {
-  flex: 1,
-  backgroundColor: "rgba(0,0,0,0.6)",
-  justifyContent: "center",
-  alignItems: "center",
-},
-
-suggestBox: {
-  width: "85%",
-  backgroundColor: "#fff",
-  padding: 20,
-  borderRadius: 12,
-  elevation: 10,
-},
-
-suggestTitle: {
-  fontSize: 18,
-  fontWeight: "700",
-  textAlign: "center",
-  marginBottom: 12,
-  color: "#333",
-},
-
-suggestMessage: {
-  textAlign: "center",
-  color: "#666",
-  fontSize: 14,
-  marginBottom: 18,
-},
-
-suggestButtons: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-},
-
-suggestBtn: {
-  paddingVertical: 10,
-  width: "48%",
-  borderRadius: 8,
-},
-
-suggestBtnText: {
-  textAlign: "center",
-  fontWeight: "700",
-  color: "#fff",
-},
-
-rangeItem: {
-  flexDirection: "row",
-  alignItems: "center",
-  paddingVertical: 10,
-  borderBottomWidth: 1,
-  borderColor: "#eee",
-},
-
-rangeText: {
-  marginLeft: 10,
-  fontSize: 15,
-  fontWeight: "600",
-},
 
   itemSummaryQty: { fontSize: 13, color: "#333" },
 
-  divider: {
-    height: 1,
-    backgroundColor: "#ccc",
-    marginVertical: 10,
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
   },
-
-  imageBox: { alignItems: "center", marginVertical: 8 },
-
-  imagePreview: {
-    width: 120,
-    height: 120,
-    borderRadius: 10,
-    backgroundColor: "#060606ff",
-  },
-  imageLabel: { marginTop: 5, fontWeight: "700", color: "#000" },
-
-  checkboxRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
 
   checkboxText: { marginLeft: 8, fontWeight: "600", color: "#000" },
 
@@ -617,17 +516,93 @@ rangeText: {
     borderRadius: 10,
     marginTop: 20,
   },
+
   confirmText: { fontWeight: "bold", textAlign: "center", fontSize: 16 },
 
-  modalOverlay: {
+  suggestOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.85)",
+    backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "center",
     alignItems: "center",
   },
 
-  fullImage: { width: "90%", height: "70%", borderRadius: 10 },
+  suggestBox: {
+    width: "85%",
+    backgroundColor: "#fff",
+    padding: 20,
+    borderRadius: 12,
+    elevation: 10,
+  },
 
-  closeIcon: { position: "absolute", top: 60, right: 25 },
-  
+  suggestTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 12,
+    color: "#333",
+  },
+
+  suggestMessage: {
+    textAlign: "center",
+    color: "#666",
+    fontSize: 14,
+    marginBottom: 18,
+  },
+
+  suggestSubtitle: {
+    marginTop: 15,
+    marginBottom: 8,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#444",
+  },
+
+  dateBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 10,
+    marginBottom: 15,
+  },
+
+  dateText: {
+    marginLeft: 10,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+
+  suggestButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+
+  actionBtn: {
+    width: "48%",
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+
+  actionText: {
+    textAlign: "center",
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  browseBtn: {
+    marginTop: 15,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#FFD600",
+  },
+
+  browseText: {
+    textAlign: "center",
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#000",
+  },
 });
